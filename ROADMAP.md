@@ -42,6 +42,11 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [ ] Subtask-aware test generation (numbering and output organization per subtask)
 - [ ] Migration path for existing single-tree workspace files to the subtask format
 
+## Other
+
+- [ ] Support LSP for code autocompletion
+- [ ] In app method to download and mingw toolchain
+
 ---
 
 ## Sequencing
