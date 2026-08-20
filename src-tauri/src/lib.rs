@@ -1,6 +1,8 @@
 mod expr;
+mod lsp;
 mod runner;
 mod schema;
+use lsp::{lsp_kill, lsp_send, lsp_start, LspState};
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::{
@@ -380,6 +382,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(WatcherState(Mutex::new(HashMap::new())))
+        .manage(LspState(tokio::sync::Mutex::new(HashMap::new())))
         .invoke_handler(tauri::generate_handler![
             read_workspace_file,
             pick_workspace_file,
@@ -392,7 +395,10 @@ pub fn run() {
             save_file,
             load_schema_file,
             watch_file,
-            unwatch_file
+            unwatch_file,
+            lsp_start,
+            lsp_send,
+            lsp_kill
         ])
         .setup(|app| {
             let version = app.package_info().version.to_string();

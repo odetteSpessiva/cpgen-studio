@@ -130,7 +130,7 @@ pub async fn run(
     if let Some(input) = stdin {
         if let Some(mut child_stdin) = child.stdin.take() {
             let input = input.to_string();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 let _ = child_stdin.write_all(input.as_bytes()).await;
             });
         }
