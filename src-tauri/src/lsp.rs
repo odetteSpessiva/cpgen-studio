@@ -38,7 +38,7 @@ async fn read_message<R: AsyncBufReadExt + Unpin>(
     Ok(Some(String::from_utf8_lossy(&buf).into_owned()))
 }
 
-#[tauri::command(async)]
+#[tauri::command]
 pub async fn lsp_start(
     app: AppHandle,
     state: tauri::State<'_, LspState>,
@@ -104,11 +104,17 @@ pub async fn lsp_send(
     language: String,
     payload: String,
 ) -> Result<(), String> {
-    let state_map = state.0.lock().await;
-    let session = state_map.get(&language).ok_or("Unable to load session!")?;
-    let mut stdin = session.stdin.lock().await;
+    let stdin_arc = {
+        let state_map = state.0.lock().await;
+        state_map
+            .get(&language)
+            .map(|v| Arc::clone(&v.stdin))
+            .ok_or("Unable to load session!")?
+    };
+    let framed = format!("Content-Length: {}\r\n\r\n{}", payload.len(), payload);
+    let mut stdin = stdin_arc.lock().await;
     stdin
-        .write_all(payload.as_bytes())
+        .write_all(framed.as_bytes())
         .await
         .map_err(|e| e.to_string())?;
     stdin.flush().await.map_err(|e| e.to_string())?;
