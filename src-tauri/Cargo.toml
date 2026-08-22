@@ -1,5 +1,6 @@
 [package]
 name = "cpgen-studio"
+default-run = "cpgen-studio"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]

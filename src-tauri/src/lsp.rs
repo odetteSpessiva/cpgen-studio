@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::{collections::HashMap, process::Stdio, sync::Arc};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
@@ -6,6 +7,12 @@ use tokio::{
     process::{Child, ChildStdin, Command},
     sync::Mutex,
 };
+
+#[derive(Serialize, Clone)]
+struct LspMessagePayload {
+    language: String,
+    payload: String,
+}
 
 pub struct Session {
     child: Child,
@@ -82,7 +89,13 @@ pub async fn lsp_start(
     tauri::async_runtime::spawn(async move {
         let mut reader = BufReader::new(stdout);
         while let Ok(Some(payload)) = read_message(&mut reader).await {
-            let _ = app_handle.emit("lsp-message", (&lang, payload));
+            let _ = app_handle.emit(
+                "lsp-message",
+                LspMessagePayload {
+                    language: lang.clone(),
+                    payload,
+                },
+            );
         }
         let _ = app_handle.emit("lsp-exit", lang);
     });
