@@ -31,7 +31,8 @@
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^4.12.2",
     "vscode-jsonrpc": "^9.0.1",
-    "vscode-languageserver-protocol": "^3.18.2"
+    "vscode-languageserver-protocol": "^3.18.2",
+    "vscode-languageserver-types": "^3.18.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

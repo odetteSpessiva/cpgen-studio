@@ -1,4 +1,4 @@
-#[path = "../lsp.rs"]
+#[path = "../src/lsp.rs"]
 mod lsp;
 
 use std::collections::HashMap;

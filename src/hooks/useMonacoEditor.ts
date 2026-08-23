@@ -1,10 +1,13 @@
 import type { OnMount } from "@monaco-editor/react";
+import { dirname } from "@tauri-apps/api/path";
 import type { editor, IDisposable, Selection } from "monaco-editor";
 import { useCallback, useEffect, useInsertionEffect, useRef } from "react";
+import { getOrStartLSP } from "../lsp/monacoIntegration";
 import type { WorkspaceFile } from "../types";
 
 type TrackedModel = editor.ITextModel & {
   _savedVersionId?: number;
+  _lspUri?: string;
 };
 
 interface UseMonacoEditorOptions {
@@ -22,6 +25,18 @@ function useLatest<T>(value: T) {
     ref.current = value;
   });
   return ref;
+}
+
+async function toParentDirUri(filePath: string): Promise<string> {
+  const parentDir = await dirname(filePath);
+  return `file://${parentDir}`;
+}
+function toFileUri(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  const withLeadingSlash = normalized.startsWith("/")
+    ? normalized
+    : `/${normalized}`;
+  return `file://${encodeURI(withLeadingSlash)}`;
 }
 
 function cleanCode(model: TrackedModel, selections: Selection[] | null) {
@@ -104,6 +119,15 @@ export function useMonacoEditor({
     const value = modelRef.current.getValue();
     lastSentValueRef.current = value;
     handleCodeChangeRef.current(boundPathRef.current, value);
+
+    const model = modelRef.current;
+    const language = model.getLanguageId();
+    getOrStartLSP(language, "").then((connection) => {
+      connection.sendNotification("textDocument/didChange", {
+        textDocument: { uri: model._lspUri, version: Date.now() },
+        contentChanges: [{ text: value }],
+      });
+    });
   }, [handleCodeChangeRef]);
 
   const performSave = useCallback(async (): Promise<boolean> => {
@@ -148,6 +172,29 @@ export function useMonacoEditor({
       boundPathRef.current = activeFileRef.current?.path ?? null;
 
       if (!model) return;
+      const language = model.getLanguageId();
+      const filePath = activeFileRef.current?.path;
+
+      if (filePath) {
+        (async () => {
+          const rootUri = await toParentDirUri(filePath);
+          const fileUri = toFileUri(filePath);
+          model._lspUri = fileUri;
+
+          const connection = await getOrStartLSP(language, rootUri);
+          connection.sendNotification("textDocument/didOpen", {
+            textDocument: {
+              uri: fileUri,
+              languageId: language,
+              version: 1,
+              text: model.getValue(),
+            },
+          });
+          console.log("[lsp] model lsp uri", model._lspUri);
+        })().catch((err) => {
+          console.error("[lsp] failed:", err);
+        });
+      }
 
       const currentFile = activeFileRef.current;
 
