@@ -5,6 +5,9 @@ export default defineConfig(async (configEnv) => {
   const resolvedViteConfig = await viteConfig(configEnv);
 
   return mergeConfig(resolvedViteConfig, {
+    resolve: {
+      conditions: ["browser"],
+    },
     test: {
       environment: "jsdom",
       globals: true,

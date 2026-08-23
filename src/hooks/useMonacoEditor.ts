@@ -134,7 +134,12 @@ export function useMonacoEditor({
     const currentModel = modelRef.current;
     const savePath = boundPathRef.current;
     if (!currentModel || currentModel.isDisposed() || !savePath) return false;
-    cleanCode(currentModel, editorRef.current?.getSelections() ?? null);
+    isProgrammaticUpdateRef.current = true;
+    try {
+      cleanCode(currentModel, editorRef.current?.getSelections() ?? null);
+    } finally {
+      isProgrammaticUpdateRef.current = false;
+    }
     const liveValue = currentModel.getValue();
     flush();
 
@@ -191,7 +196,6 @@ export function useMonacoEditor({
               text: model.getValue(),
             },
           });
-          console.log("[lsp] model lsp uri", model._lspUri);
         })().catch((err) => {
           console.error("[lsp] failed:", err);
         });

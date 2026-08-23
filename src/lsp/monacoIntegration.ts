@@ -31,11 +31,21 @@ function getSeverityMap(
     4: monaco.MarkerSeverity.Hint,
   };
 }
+
+interface ConnectionRef {
+  current: Promise<MessageConnection>;
+  invalidated: boolean;
+}
+
+const connectionCache = new Map<string, ConnectionRef>();
+
 export async function startLSP(
   language: string,
   rootUri: string,
 ): Promise<MessageConnection> {
-  await invoke("lsp_start", { language: language });
+  const targetTriple = await invoke<string | null>("lsp_start", {
+    language: language,
+  });
 
   const connection: MessageConnection = createMessageConnection(
     new TauriMessageReader(language),
@@ -47,6 +57,10 @@ export async function startLSP(
     processId: null,
     rootUri,
     capabilities: {},
+    initializationOptions:
+      language === "cpp" && targetTriple
+        ? { fallbackFlags: [`--target=${targetTriple}`] }
+        : undefined,
   });
   connection.sendNotification("initialized", {});
   return connection;
@@ -58,12 +72,12 @@ function markedStringToText(value: MarkedString): string {
 
 export function registerHover(
   monaco: typeof Monaco,
-  connection: MessageConnection,
+  connectionPromiseRef: ConnectionRef,
   language: string,
 ) {
-  console.log("[lsp] registering hover for", language);
   return monaco.languages.registerHoverProvider(language, {
     async provideHover(model, position) {
+      const connection = await connectionPromiseRef.current;
       const result = await connection.sendRequest<Hover | null>(
         "textDocument/hover",
         {
@@ -74,7 +88,6 @@ export function registerHover(
           },
         },
       );
-      console.log("[lsp] hover result", result);
       if (!result || !result.contents) return null;
       const { contents } = result;
       const value =
@@ -103,7 +116,7 @@ export function registerDiagnostics(
     (params: { uri: string; diagnostics: Diagnostic[] }) => {
       const model = monaco.editor
         .getModels()
-        .find((m) => m.uri.toString() === params.uri);
+        .find((m) => getLspUri(m) === params.uri);
       if (!model) return;
       const markers: Monaco.editor.IMarkerData[] = params.diagnostics.map(
         (d: Diagnostic) => ({
@@ -122,13 +135,13 @@ export function registerDiagnostics(
 
 export function registerCompletion(
   monaco: typeof Monaco,
-  connection: MessageConnection,
+  connectionPromiseRef: ConnectionRef,
   language: string,
 ) {
-  console.log("[lsp] registering completion for", language);
   return monaco.languages.registerCompletionItemProvider(language, {
     triggerCharacters: [".", ":", ">", '"'],
     async provideCompletionItems(model, position) {
+      const connection = await connectionPromiseRef.current;
       const result = await connection.sendRequest<
         CompletionItem[] | CompletionList | null
       >("textDocument/completion", {
@@ -138,7 +151,6 @@ export function registerCompletion(
           character: position.column - 1,
         },
       });
-      console.log("[lsp] completion result", result);
 
       const items = Array.isArray(result) ? result : result ? result.items : [];
       const word = model.getWordUntilPosition(position);
@@ -162,22 +174,39 @@ export function registerCompletion(
   });
 }
 
-const connectionCache = new Map<string, Promise<MessageConnection>>();
-
 export async function getOrStartLSP(
   language: string,
   rootUri: string,
 ): Promise<MessageConnection> {
-  let cached = connectionCache.get(language);
-  const monaco = await getMonaco();
-  if (!cached) {
-    cached = startLSP(language, rootUri).then((connection) => {
-      registerHover(monaco, connection, language);
-      registerDiagnostics(monaco, connection, language);
-      registerCompletion(monaco, connection, language);
-      return connection;
-    });
-    connectionCache.set(language, cached);
+  let ref = connectionCache.get(language);
+  if (!ref || ref.invalidated) {
+    const monaco = await getMonaco();
+    const newPromise = startLSP(language, rootUri);
+    if (!ref) {
+      ref = { current: newPromise, invalidated: false };
+      connectionCache.set(language, ref);
+      registerHover(monaco, ref, language);
+      registerCompletion(monaco, ref, language);
+    } else {
+      ref.current = newPromise;
+      ref.invalidated = false;
+    }
+    ref.current.then((connection) =>
+      registerDiagnostics(monaco, connection, language),
+    );
   }
-  return cached;
+  return ref.current;
+}
+
+export async function invalidateLspConnection(language: string) {
+  const ref = connectionCache.get(language);
+  if (!ref) return;
+  const oldPromise = ref.current;
+  ref.invalidated = true;
+  try {
+    const connection = await oldPromise;
+    connection.dispose();
+  } catch {
+    // connection already disposed, ignore
+  }
 }

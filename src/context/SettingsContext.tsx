@@ -8,6 +8,8 @@ interface SettingsContextValue {
   fontFamily: string;
   compilerPath: string;
   compilerArgs: string;
+  clangdPath: string;
+  pylspPath: string;
   onSettingChange: (key: SettingKey, value: number | string) => void;
   error: string | null;
   setError: (

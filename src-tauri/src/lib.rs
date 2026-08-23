@@ -2,7 +2,7 @@ mod expr;
 mod lsp;
 mod runner;
 mod schema;
-use lsp::{lsp_kill, lsp_send, lsp_start, LspState};
+use lsp::{lsp_kill, lsp_send, lsp_start, GppTripleState, LspState};
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::{
@@ -383,6 +383,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(WatcherState(Mutex::new(HashMap::new())))
         .manage(LspState(tokio::sync::Mutex::new(HashMap::new())))
+        .manage(GppTripleState(tokio::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             read_workspace_file,
             pick_workspace_file,

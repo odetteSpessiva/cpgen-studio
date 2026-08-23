@@ -19,6 +19,24 @@ pub struct Session {
     stdin: Arc<Mutex<ChildStdin>>,
 }
 pub struct LspState(pub Mutex<HashMap<String, Session>>);
+pub struct GppTripleState(pub Mutex<Option<String>>);
+
+async fn get_gpp_target_triple(gpp_path: &str) -> Result<Option<String>, String> {
+    let output = Command::new(gpp_path)
+        .arg("-dumpmachine")
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run g++ -dumpmachine: {e}"))?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let triple = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(if triple.is_empty() {
+        None
+    } else {
+        Some(triple)
+    })
+}
 
 async fn read_message<R: AsyncBufReadExt + Unpin>(
     reader: &mut R,
@@ -49,11 +67,12 @@ async fn read_message<R: AsyncBufReadExt + Unpin>(
 pub async fn lsp_start(
     app: AppHandle,
     state: tauri::State<'_, LspState>,
+    gpp_triple_state: tauri::State<'_, GppTripleState>,
     language: String,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
     let mut state_map = state.0.lock().await;
     if state_map.contains_key(&language) {
-        return Ok(());
+        return Ok(None);
     }
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
     let (default_bin, setting_key) = match language.as_str() {
@@ -66,6 +85,25 @@ pub async fn lsp_start(
         .get(setting_key)
         .and_then(|f| f.as_str().map(String::from))
         .unwrap_or_default();
+
+    let target_triple = if language == "cpp" {
+        let mut cached = gpp_triple_state.0.lock().await;
+        if cached.is_none() {
+            let gpp_config = store
+                .get("compilerPath")
+                .and_then(|f| f.as_str().map(String::from))
+                .unwrap_or_default();
+            let gpp_path = if gpp_config.trim().is_empty() {
+                "g++".to_string()
+            } else {
+                gpp_config
+            };
+            *cached = get_gpp_target_triple(&gpp_path).await?;
+        }
+        cached.clone()
+    } else {
+        None
+    };
 
     let program = if config_bin.trim().is_empty() {
         default_bin.to_string()
@@ -108,7 +146,7 @@ pub async fn lsp_start(
         },
     );
 
-    Ok(())
+    Ok(target_triple)
 }
 
 #[tauri::command]

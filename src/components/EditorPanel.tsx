@@ -20,6 +20,8 @@ const EDITOR_OPTIONS = {
   lineNumbersMinChars: 3,
   automaticLayout: true,
   padding: { top: 10, bottom: 10 },
+  renderValidationDecorations: "on" as const,
+  fixedOverflowWidgets: true,
 };
 
 const TAB_CLASS =

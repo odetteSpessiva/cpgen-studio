@@ -1,5 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
 import { useEffect, useRef, useState } from "react";
+import { invalidateLspConnection } from "../lsp/monacoIntegration";
 import type { SettingKey } from "../types";
 
 interface SettingsState {
@@ -7,6 +9,8 @@ interface SettingsState {
   fontFamily: string;
   compilerPath: string;
   compilerArgs: string;
+  clangdPath: string;
+  pylspPath: string;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -15,6 +19,14 @@ const DEFAULT_SETTINGS: SettingsState = {
     '"SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
   compilerPath: "g++",
   compilerArgs: "-std=c++14 -O2",
+  clangdPath: "clangd",
+  pylspPath: "pylsp",
+};
+
+const LSP_SETTING_TO_LANGUAGE: Partial<Record<SettingKey, string>> = {
+  clangdPath: "cpp",
+  compilerPath: "cpp",
+  pylspPath: "python",
 };
 
 function assignSetting<K extends keyof SettingsState>(
@@ -71,6 +83,11 @@ export function useSettings() {
   const onSettingChange = async (key: SettingKey, value: number | string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setError(null);
+    const language = LSP_SETTING_TO_LANGUAGE[key];
+    if (language) {
+      await invoke("lsp_kill", { language });
+      await invalidateLspConnection(language);
+    }
     try {
       const store = await storePromiseRef.current;
       if (!store) {

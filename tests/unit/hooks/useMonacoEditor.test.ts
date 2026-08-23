@@ -7,6 +7,7 @@ interface MockModel {
   getValue: () => string;
   setValue: (v: string) => void;
   getAlternativeVersionId: () => number;
+  getLanguageId: () => string;
   isDisposed: () => boolean;
   onDidChangeContent: (cb: () => void) => { dispose: () => void };
   getPositionAt: (offset: number) => { lineNumber: number; column: number };
@@ -31,6 +32,7 @@ interface MockModel {
 function createMockModel(
   initialValue: string,
   savedVersionId?: number,
+  language = "cpp",
 ): MockModel {
   let value = initialValue;
   let versionId = 1;
@@ -113,6 +115,7 @@ function createMockModel(
       listeners.forEach((l) => l());
     },
     getAlternativeVersionId: () => versionId,
+    getLanguageId: () => language,
     isDisposed: () => disposed,
     onDidChangeContent: (cb) => {
       listeners.add(cb);

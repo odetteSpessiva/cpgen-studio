@@ -120,6 +120,8 @@ export default function Settings() {
     fontFamily,
     compilerPath,
     compilerArgs,
+    clangdPath,
+    pylspPath,
     onSettingChange,
     error,
     setError,
@@ -150,6 +152,20 @@ export default function Settings() {
   const compilerArgsField = useCommittedSetting(
     "compilerArgs",
     compilerArgs,
+    onSettingChange,
+    parseString,
+  );
+
+  const clangdPathField = useCommittedSetting(
+    "clangdPath",
+    clangdPath,
+    onSettingChange,
+    parseString,
+  );
+
+  const pylspPathField = useCommittedSetting(
+    "pylspPath",
+    pylspPath,
     onSettingChange,
     parseString,
   );
@@ -233,6 +249,27 @@ export default function Settings() {
               ))}
             </div>
           </SettingField>
+        </Section>
+
+        <Section title="Language Servers">
+          <SettingField
+            label="clangd path"
+            field={clangdPathField}
+            inputProps={{
+              type: "text",
+              autoComplete: "off",
+              placeholder: "clangd",
+            }}
+          />
+          <SettingField
+            label="pylsp path"
+            field={pylspPathField}
+            inputProps={{
+              type: "text",
+              autoComplete: "off",
+              placeholder: "pylsp",
+            }}
+          />
         </Section>
       </div>
     </div>
