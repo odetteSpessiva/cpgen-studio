@@ -13,7 +13,7 @@ type TrackedModel = editor.ITextModel & {
 interface UseMonacoEditorOptions {
   activeFile: WorkspaceFile | null;
   handleCodeChange: (path: string, newValue: string) => void;
-  saveActiveFile: () => Promise<boolean>;
+  saveActiveFile: (contentOverride?: string) => Promise<boolean>;
   setIsDirty: (path: string, isDirty: boolean) => void;
   debounceMs?: number;
 }
@@ -135,12 +135,13 @@ export function useMonacoEditor({
     const savePath = boundPathRef.current;
     if (!currentModel || currentModel.isDisposed() || !savePath) return false;
     cleanCode(currentModel, editorRef.current?.getSelections() ?? null);
+    const liveValue = currentModel.getValue();
     flush();
 
     const versionAtSave = currentModel.getAlternativeVersionId();
 
     try {
-      const success = await saveRef.current();
+      const success = await saveRef.current(liveValue);
       if (success && !currentModel.isDisposed()) {
         currentModel._savedVersionId = versionAtSave;
         const isStillDirty =

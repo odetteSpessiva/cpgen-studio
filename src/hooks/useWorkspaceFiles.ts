@@ -89,6 +89,13 @@ export function useWorkspaceFiles(
     solution: savedState.solutionPath,
   });
 
+  const pendingSelfWriteRef = useRef<Set<string>>(new Set());
+
+  function markPendingSelfWrite(path: string) {
+    pendingSelfWriteRef.current.add(path);
+    setTimeout(() => pendingSelfWriteRef.current.delete(path), 10000);
+  }
+
   const [generatorFile, setGeneratorFile] = useState<WorkspaceFile | null>(
     null,
   );
@@ -267,17 +274,20 @@ export function useWorkspaceFiles(
     );
   };
 
-  const saveActiveFile = async (): Promise<boolean> => {
+  const saveActiveFile = async (contentOverride?: string): Promise<boolean> => {
     const fileToSave = activeFile;
     if (!fileToSave) return false;
+    const content = contentOverride ?? fileToSave.value;
 
     try {
+      markPendingSelfWrite(fileToSave.path);
       await invoke("save_workspace_file", {
         path: fileToSave.path,
-        content: fileToSave.value,
+        content,
       });
       updateFileByPath(fileToSave.path, (file) => ({
         ...file,
+        value: content,
         isDirty: false,
       }));
       appendLog("info", `Saved ${fileToSave.name}`);
@@ -321,6 +331,12 @@ export function useWorkspaceFiles(
   useEffect(() => {
     const unlisten = listen<string>("file-changed", async (event) => {
       const changedPath = event.payload;
+
+      if (pendingSelfWriteRef.current.has(changedPath)) {
+        pendingSelfWriteRef.current.delete(changedPath);
+        return;
+      }
+
       const affectedSlots: WorkspaceSlot[] = [
         ...(changedPath === generatorPath ? (["generator"] as const) : []),
         ...(changedPath === solutionPath ? (["solution"] as const) : []),
