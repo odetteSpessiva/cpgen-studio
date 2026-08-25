@@ -11,7 +11,7 @@ use std::{
     sync::Mutex,
     time::Duration,
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_window_state::StateFlags;
@@ -78,8 +78,11 @@ fn read_workspace_file(path: String) -> Result<WorkspaceFilePayload, String> {
 }
 
 #[tauri::command(async)]
-fn pick_workspace_file(app: AppHandle) -> Result<Option<WorkspaceFilePayload>, String> {
-    match app.dialog().file().blocking_pick_file() {
+fn pick_workspace_file(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<Option<WorkspaceFilePayload>, String> {
+    match app.dialog().file().set_parent(&window).blocking_pick_file() {
         Some(file_path) => {
             let path = file_path
                 .into_path()
@@ -91,12 +94,17 @@ fn pick_workspace_file(app: AppHandle) -> Result<Option<WorkspaceFilePayload>, S
 }
 
 #[tauri::command(async)]
-fn save_file(app: AppHandle, contents: String) -> Result<Option<PathBuf>, String> {
+fn save_file(
+    app: AppHandle,
+    window: WebviewWindow,
+    contents: String,
+) -> Result<Option<PathBuf>, String> {
     match app
         .dialog()
         .file()
         .set_file_name("schema.json")
         .add_filter("json", &["json"])
+        .set_parent(&window)
         .blocking_save_file()
     {
         Some(file_path) => {
@@ -112,11 +120,15 @@ fn save_file(app: AppHandle, contents: String) -> Result<Option<PathBuf>, String
 }
 
 #[tauri::command(async)]
-fn load_schema_file(app: AppHandle) -> Result<Option<SchemaLoadPayload>, String> {
+fn load_schema_file(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<Option<SchemaLoadPayload>, String> {
     match app
         .dialog()
         .file()
         .add_filter("json", &["json"])
+        .set_parent(&window)
         .blocking_pick_file()
     {
         Some(file_path) => {
@@ -135,8 +147,13 @@ fn load_schema_file(app: AppHandle) -> Result<Option<SchemaLoadPayload>, String>
 }
 
 #[tauri::command(async)]
-fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
-    match app.dialog().file().blocking_pick_folder() {
+fn pick_directory(app: AppHandle, window: WebviewWindow) -> Result<Option<String>, String> {
+    match app
+        .dialog()
+        .file()
+        .set_parent(&window)
+        .blocking_pick_folder()
+    {
         Some(file_path) => {
             let path = file_path
                 .into_path()
