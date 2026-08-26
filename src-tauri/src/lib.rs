@@ -1,4 +1,5 @@
 mod expr;
+mod format;
 mod lsp;
 mod runner;
 mod schema;

@@ -30,3 +30,4 @@ rand = {version = "0.10.2"}
 tauri-plugin-store = "2"
 shell-words = "1"
 notify = "8.2.0"
+winnow = "1.0.4"

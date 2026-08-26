@@ -561,6 +561,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-window-state",
  "tokio",
+ "winnow 1.0.4",
 ]
 
 [[package]]
