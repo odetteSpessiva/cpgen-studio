@@ -19,9 +19,10 @@ import { useCallback, useState } from "react";
 import type { FieldKind, SchemaNode } from "../../types";
 import {
   findNodeRecursive,
+  findParentList,
   moveNodeInTree,
   removeNodeRecursive,
-  updateLoopChildren,
+  updateContainerChildren,
   updateNodeRecursive,
 } from "../../utils/schemaTree";
 
@@ -32,16 +33,7 @@ import SchemaToolbar from "./SchemaToolbar";
 
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
 
-function findParentList(list: SchemaNode[], id: string): SchemaNode[] | null {
-  if (list.some((n) => n.id === id)) return list;
-  for (const node of list) {
-    if (node.kind === "loop") {
-      const found = findParentList(node.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
+import { getNodeKindMeta } from "../../utils/nodeMeta";
 
 export default function VisualSchemaBuilder() {
   const { nodes, setNodes, handleSaveSchema, handleLoadSchema } =
@@ -112,9 +104,11 @@ export default function VisualSchemaBuilder() {
     };
 
     const newNode = defaults[kind];
+    let isContainer =
+      selectedKind !== null ? getNodeKindMeta(selectedKind).hasChildren : false;
     setNodes((prev) =>
-      selectedKind === "loop" && selectedId
-        ? updateLoopChildren(prev, selectedId, (c) => [...c, newNode])
+      isContainer && selectedId
+        ? updateContainerChildren(prev, selectedId, (c) => [...c, newNode])
         : [...prev, newNode],
     );
   };

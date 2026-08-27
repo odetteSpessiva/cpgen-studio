@@ -6,8 +6,64 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import type { SchemaNode } from "../../types";
-import { getNodeKindMeta } from "../../utils/nodeCategory";
+import { getNodeKindMeta } from "../../utils/nodeMeta";
 import NodeFields from "./NodeFields";
+
+function ChildrenContainer({
+  node,
+  selectedId,
+  onSelect,
+  onUpdate,
+  onRemove,
+}: {
+  node: SchemaNode;
+  selectedId: string | null;
+  onSelect: NodeCardProps["onSelect"];
+  onUpdate: NodeCardProps["onUpdate"];
+  onRemove: NodeCardProps["onRemove"];
+}) {
+  const nodeMeta = getNodeKindMeta(node.kind);
+  const children = node.children ?? [];
+
+  const style = {
+    borderLeftColor: nodeMeta.color.border,
+    backgroundColor: "var(--bg-primary)",
+  };
+
+  return (
+    <div
+      className="pl-2 border-l-2 bg-(--bg-primary) p-2 rounded space-y-2 min-h-12"
+      style={style}
+    >
+      <div className="text-[10px] text-(--text-muted) uppercase font-semibold">
+        {node.kind} container
+      </div>
+      {children.length === 0 ? (
+        <div className="text-[11px] text-(--text-muted) italic text-center py-2 border border-dashed border-(--border) rounded">
+          Select this node to add blocks inside
+        </div>
+      ) : (
+        <SortableContext
+          items={children.map((c) => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-2">
+            {children.map((child) => (
+              <NodeCard
+                key={child.id}
+                node={child}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                onUpdate={onUpdate}
+                onRemove={onRemove}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      )}
+    </div>
+  );
+}
 
 interface NodeCardProps {
   node: SchemaNode;
@@ -26,8 +82,7 @@ function NodeCard({
 }: NodeCardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const isSelected = selectedId === node.id;
-  const nodeMeta = getNodeKindMeta(node.kind);
-  const categoryColor = nodeMeta.color;
+  const categoryColor = getNodeKindMeta(node.kind).color;
 
   const {
     attributes,
@@ -64,19 +119,15 @@ function NodeCard({
     color: categoryColor.accent,
   };
 
-  const loopBodyStyle = {
-    borderLeftColor: categoryColor.border,
-    backgroundColor: "var(--bg-primary)",
-  };
-
   const stopInteractivePropagation = (
     e: React.PointerEvent | React.MouseEvent,
   ) => {
     e.stopPropagation();
   };
 
-  const isLoop = node.kind === "loop";
-  const fieldKey = isLoop ? "count" : "varName";
+  const nodeMeta = getNodeKindMeta(node.kind);
+
+  const headerValue = nodeMeta.getHeaderValue?.(node);
 
   return (
     <div
@@ -101,15 +152,19 @@ function NodeCard({
           {node.kind}
         </span>
 
-        <input
-          type="text"
-          placeholder={isLoop ? "Count (e.g. T)" : "Var (e.g. N)"}
-          value={isLoop ? node.count : node.varName || ""}
-          onPointerDown={stopInteractivePropagation}
-          onClick={stopInteractivePropagation}
-          onChange={(e) => onUpdate(node.id, { [fieldKey]: e.target.value })}
-          className="w-20 bg-(--bg-input) border border-(--border) text-(--text-primary) px-1.5 py-0.5 rounded text-xs outline-none focus:border-(--accent) cursor-text"
-        />
+        {nodeMeta.getHeaderValue && (
+          <input
+            type="text"
+            placeholder={nodeMeta.headerPlaceholder}
+            value={headerValue}
+            onPointerDown={stopInteractivePropagation}
+            onClick={stopInteractivePropagation}
+            onChange={(e) =>
+              onUpdate(node.id, nodeMeta.setHeaderValue!(e.target.value))
+            }
+            className="w-20 bg-(--bg-input) border border-(--border) text-(--text-primary) px-1.5 py-0.5 rounded text-xs outline-none focus:border-(--accent) cursor-text"
+          />
+        )}
 
         <div
           className="ml-auto flex items-center gap-1"
@@ -146,39 +201,14 @@ function NodeCard({
           className="p-2 space-y-2 text-xs"
           onPointerDown={stopInteractivePropagation}
         >
-          {node.kind === "loop" ? (
-            <div
-              className="pl-2 border-l-2 bg-(--bg-primary) p-2 rounded space-y-2 min-h-12"
-              style={loopBodyStyle}
-            >
-              <div className="text-[10px] text-(--text-muted) uppercase font-semibold">
-                Loop Container
-              </div>
-
-              {node.children.length === 0 ? (
-                <div className="text-[11px] text-(--text-muted) italic text-center py-2 border border-dashed border-(--border) rounded">
-                  Select this loop to add blocks inside
-                </div>
-              ) : (
-                <SortableContext
-                  items={node.children.map((c) => c.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-2">
-                    {node.children.map((child) => (
-                      <NodeCard
-                        key={child.id}
-                        node={child}
-                        selectedId={selectedId}
-                        onSelect={onSelect}
-                        onUpdate={onUpdate}
-                        onRemove={onRemove}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              )}
-            </div>
+          {nodeMeta.hasChildren ? (
+            <ChildrenContainer
+              node={node}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+            />
           ) : (
             <NodeFields node={node} onUpdate={onUpdate} />
           )}

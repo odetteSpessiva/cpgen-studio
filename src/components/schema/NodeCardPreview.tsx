@@ -1,9 +1,10 @@
 import { SchemaNode } from "../../types";
-import { getNodeKindMeta } from "../../utils/nodeCategory";
+import { getNodeKindMeta } from "../../utils/nodeMeta";
 
 export default function NodeCardPreview({ node }: { node: SchemaNode }) {
-  const isLoop = node.kind === "loop";
-  const categoryColor = getNodeKindMeta(node.kind).color;
+  const nodeMeta = getNodeKindMeta(node.kind);
+  const headerValue = nodeMeta.getHeaderValue?.(node);
+  const categoryColor = nodeMeta.color;
 
   return (
     <div
@@ -29,7 +30,7 @@ export default function NodeCardPreview({ node }: { node: SchemaNode }) {
           {node.kind}
         </span>
         <span className="text-xs text-(--text-primary)">
-          {isLoop ? node.count : node.varName || "(unnamed)"}
+          {headerValue || "(unnamed)"}
         </span>
       </div>
     </div>

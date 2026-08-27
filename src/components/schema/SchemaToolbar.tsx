@@ -1,4 +1,5 @@
 import type { FieldKind } from "../../types";
+import { getNodeKindMeta } from "../../utils/nodeMeta";
 
 interface SchemaToolbarProps {
   selectedKind: FieldKind | null;
@@ -22,7 +23,10 @@ export default function SchemaToolbar({
   onAddNode,
   onClearSelection,
 }: SchemaToolbarProps) {
-  const isLoopSelected = selectedKind === "loop";
+  const isContainerSelected =
+    selectedKind !== null
+      ? (getNodeKindMeta(selectedKind).hasChildren ?? false)
+      : false;
 
   return (
     <div className="space-y-2 pt-2 border-t border-(--border)">
@@ -30,7 +34,7 @@ export default function SchemaToolbar({
         <span>
           Target:{" "}
           <strong className="text-(--text-primary)">
-            {isLoopSelected ? "Selected Loop Container" : "Root List"}
+            {isContainerSelected ? "Selected Container" : "Root List"}
           </strong>
         </span>
 

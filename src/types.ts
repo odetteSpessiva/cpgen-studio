@@ -53,6 +53,7 @@ export interface BaseNode {
   id: string;
   kind: FieldKind;
   varName?: string;
+  children?: SchemaNode[];
 }
 
 export interface IntNode extends BaseNode {

@@ -7,7 +7,7 @@ export function findNodeRecursive(
 ): SchemaNode | null {
   for (const node of list) {
     if (node.id === id) return node;
-    if (node.kind === "loop") {
+    if (node.children) {
       const found = findNodeRecursive(node.children, id);
       if (found) return found;
     }
@@ -22,7 +22,7 @@ export function removeNodeRecursive(
   return list
     .filter((node) => node.id !== id)
     .map((node) =>
-      node.kind === "loop"
+      node.children
         ? { ...node, children: removeNodeRecursive(node.children, id) }
         : node,
     );
@@ -35,7 +35,7 @@ export function updateNodeRecursive(
 ): SchemaNode[] {
   return list.map((node) => {
     if (node.id === id) return { ...node, ...updated } as SchemaNode;
-    if (node.kind === "loop") {
+    if (node.children) {
       return {
         ...node,
         children: updateNodeRecursive(node.children, id, updated),
@@ -45,19 +45,19 @@ export function updateNodeRecursive(
   });
 }
 
-export function updateLoopChildren(
+export function updateContainerChildren(
   list: SchemaNode[],
-  loopId: string,
+  containerId: string,
   fn: (children: SchemaNode[]) => SchemaNode[],
 ): SchemaNode[] {
   return list.map((node) => {
-    if (node.id === loopId && node.kind === "loop") {
+    if (node.id === containerId && node.children) {
       return { ...node, children: fn(node.children) };
     }
-    if (node.kind === "loop") {
+    if (node.children) {
       return {
         ...node,
-        children: updateLoopChildren(node.children, loopId, fn),
+        children: updateContainerChildren(node.children, containerId, fn),
       };
     }
     return node;
@@ -72,7 +72,7 @@ function findParentArrayAndIndex(
   if (idx !== -1) return { parent: list, index: idx };
 
   for (const node of list) {
-    if (node.kind === "loop") {
+    if (node.children) {
       const found = findParentArrayAndIndex(node.children, id);
       if (found) return found;
     }
@@ -87,7 +87,7 @@ function replaceArrayInTree(
 ): SchemaNode[] {
   if (tree === targetArray) return newArray;
   return tree.map((node) => {
-    if (node.kind === "loop") {
+    if (node.children) {
       return {
         ...node,
         children: replaceArrayInTree(node.children, targetArray, newArray),
@@ -111,4 +111,18 @@ export function moveNodeInTree(
 
   const reordered = arrayMove(activeLoc.parent, activeLoc.index, overLoc.index);
   return replaceArrayInTree(tree, activeLoc.parent, reordered);
+}
+
+export function findParentList(
+  list: SchemaNode[],
+  id: string,
+): SchemaNode[] | null {
+  if (list.some((n) => n.id === id)) return list;
+  for (const node of list) {
+    if (node.children) {
+      const found = findParentList(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
 }

@@ -5,7 +5,7 @@ import {
   findNodeRecursive,
   moveNodeInTree,
   removeNodeRecursive,
-  updateLoopChildren,
+  updateContainerChildren,
   updateNodeRecursive,
 } from "../../../src/utils/schemaTree";
 
@@ -93,7 +93,7 @@ describe("schemaTree", () => {
       },
     ];
 
-    const updated = updateLoopChildren(tree, "loop-1", (children) => [
+    const updated = updateContainerChildren(tree, "loop-1", (children) => [
       ...children,
       {
         id: "child-1",
