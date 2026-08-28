@@ -49,6 +49,7 @@ pub enum SchemaNode {
         var_name: Option<String>,
         min: String,
         max: String,
+        output_format: Option<String>,
     },
     Float {
         #[serde(rename = "varName")]
@@ -56,6 +57,7 @@ pub enum SchemaNode {
         min: String,
         max: String,
         precision: String,
+        output_format: Option<String>,
     },
     String {
         #[serde(rename = "varName")]
@@ -541,6 +543,7 @@ mod tests {
             var_name: Some("n".to_string()),
             min: "4".to_string(),
             max: "4".to_string(),
+            output_format: None,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
@@ -558,6 +561,7 @@ mod tests {
             min: "2.5".to_string(),
             max: "2.5".to_string(),
             precision: "1".to_string(),
+            output_format: None,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
@@ -697,6 +701,7 @@ mod tests {
                 var_name: None,
                 min: "9".to_string(),
                 max: "9".to_string(),
+                output_format: None,
             }],
         }];
         let mut out = Vec::new();
@@ -713,6 +718,7 @@ mod tests {
                 var_name: None,
                 min: "9".to_string(),
                 max: "9".to_string(),
+                output_format: None,
             }],
         }];
         let mut out = Vec::new();
@@ -741,6 +747,7 @@ mod tests {
                 var_name: None,
                 min: "5".to_string(),
                 max: "1".to_string(),
+                output_format: None,
             }],
         }];
         let mut out = Vec::new();
@@ -758,6 +765,7 @@ mod tests {
                 var_name: Some("n".to_string()),
                 min: "5".to_string(),
                 max: "5".to_string(),
+                output_format: None,
             },
             SchemaNode::Array {
                 var_name: None,
@@ -788,6 +796,7 @@ mod tests {
                 var_name: None,
                 min: "s".to_string(),
                 max: "s".to_string(),
+                output_format: None,
             },
         ];
         let mut out = Vec::new();
@@ -804,11 +813,13 @@ mod tests {
                 var_name: None,
                 min: "1".to_string(),
                 max: "1".to_string(),
+                output_format: None,
             },
             SchemaNode::Int {
                 var_name: None,
                 min: "2".to_string(),
                 max: "2".to_string(),
+                output_format: None,
             },
         ];
         let result = generate(&nodes, Some(42)).unwrap();
@@ -834,6 +845,7 @@ mod tests {
             var_name: None,
             min: "1".to_string(),
             max: "10".to_string(),
+            output_format: None,
         }];
         let result = generate(&nodes, None).unwrap();
         let v: i64 = result.parse().unwrap();
@@ -846,6 +858,7 @@ mod tests {
             var_name: None,
             min: "10".to_string(),
             max: "1".to_string(),
+            output_format: None,
         }];
         let err = generate(&nodes, Some(1)).unwrap_err();
         assert!(err.contains("greater than max"));

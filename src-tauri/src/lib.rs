@@ -3,6 +3,7 @@ mod format;
 mod lsp;
 mod runner;
 mod schema;
+mod validate;
 use lsp::{lsp_kill, lsp_send, lsp_start, GppTripleState, LspState};
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
@@ -284,6 +285,13 @@ async fn generate_tests_from_schema(
     start_id: i32,
     seed: Option<u64>,
 ) -> Result<(), String> {
+    validate::validate(&schema).map_err(|errs| {
+        errs.iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+
     const BATCH_SIZE: usize = 4;
     send_status(
         &app,
@@ -558,6 +566,7 @@ mod tests {
                 var_name: None,
                 min: "2".to_string(),
                 max: "2".to_string(),
+                output_format: None,
             },
             SchemaNode::Loop {
                 count: "2".to_string(),
@@ -585,6 +594,7 @@ mod tests {
             var_name: None,
             min: "10".to_string(),
             max: "1".to_string(),
+            output_format: None,
         }];
 
         let result = super::preview_schema(schema, Some(1));

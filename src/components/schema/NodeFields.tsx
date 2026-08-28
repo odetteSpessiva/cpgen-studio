@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import type {
-  SchemaNode,
-  StringNode,
   ArrayNode,
   PrimitiveSpec,
+  SchemaNode,
+  StringNode,
 } from "../../types";
 
 interface NodeFieldsProps {
@@ -75,6 +75,38 @@ function SelectField<T extends string>({
         ))}
       </select>
     </Field>
+  );
+}
+
+function OptionalTextField<T>({
+  label,
+  value,
+  onToggle,
+  disabledReason,
+  children,
+}: {
+  label: string;
+  value: T | undefined;
+  onToggle: (enabled: boolean) => void;
+  disabledReason?: string;
+  children: ReactNode;
+}) {
+  const enabled = value !== undefined;
+
+  return (
+    <div className="border-t border-(--border) pt-2 mt-2">
+      <label className="flex items-center gap-2 text-[10px] text-(--text-muted) mb-1">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={!!disabledReason}
+          onChange={(e) => onToggle(e.target.checked)}
+        />
+        {label}
+        {disabledReason && <span className="italic">({disabledReason})</span>}
+      </label>
+      {enabled && children}
+    </div>
   );
 }
 
@@ -173,7 +205,34 @@ export default function NodeFields({ node, onUpdate }: NodeFieldsProps) {
   }
 
   if (node.kind === "int" || node.kind === "float" || node.kind === "string") {
-    return <PrimitiveFields spec={node} onChange={(spec) => update(spec)} />;
+    const isNumeric = node.kind === "int" || node.kind === "float";
+
+    return (
+      <div className="space-y-2">
+        <PrimitiveFields spec={node} onChange={(spec) => update(spec)} />
+
+        {isNumeric && (
+          <OptionalTextField
+            label="Output Format"
+            value={node.outputFormat}
+            disabledReason={
+              !node.varName ? "needs a var name first" : undefined
+            }
+            onToggle={(checked) =>
+              update({ outputFormat: checked ? "" : undefined })
+            }
+          >
+            <input
+              type="text"
+              value={node.outputFormat ?? ""}
+              placeholder={`e.g. {${node.varName || "var"}}: {other_var}`}
+              onChange={(e) => update({ outputFormat: e.target.value })}
+              className={INPUT_CLASS}
+            />
+          </OptionalTextField>
+        )}
+      </div>
+    );
   }
 
   if (node.kind === "array") {

@@ -54,6 +54,7 @@ export interface BaseNode {
   kind: FieldKind;
   varName?: string;
   children?: SchemaNode[];
+  outputFormat?: string;
 }
 
 export interface IntNode extends BaseNode {
