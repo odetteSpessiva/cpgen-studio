@@ -108,7 +108,7 @@ fn format_f64(num: f64, spec: &FormatSpecs) -> String {
     match align {
         '<' => {
             let mut result = num_str;
-            result.extend(std::iter::repeat(fill));
+            result.extend(std::iter::repeat_n(fill, pad_len));
             result
         }
         '^' => {

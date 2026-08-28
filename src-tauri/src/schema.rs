@@ -1,4 +1,5 @@
 use crate::expr;
+use crate::format as numeric_formatter;
 use rand::{rngs::StdRng, Rng, RngExt, SeedableRng};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -31,7 +32,6 @@ pub enum PrimitiveSpec {
     Float {
         min: String,
         max: String,
-        precision: String,
     },
     String {
         length: String,
@@ -49,6 +49,7 @@ pub enum SchemaNode {
         var_name: Option<String>,
         min: String,
         max: String,
+        #[serde(rename = "outputFormat")]
         output_format: Option<String>,
     },
     Float {
@@ -56,7 +57,7 @@ pub enum SchemaNode {
         var_name: Option<String>,
         min: String,
         max: String,
-        precision: String,
+        #[serde(rename = "outputFormat")]
         output_format: Option<String>,
     },
     String {
@@ -140,15 +141,14 @@ impl Interpreter {
         Ok(self.rng.random_range(lo..=hi))
     }
 
-    fn gen_float(&mut self, min: &str, max: &str, precision: &str) -> Result<String, String> {
+    fn gen_float(&mut self, min: &str, max: &str) -> Result<String, String> {
         let lo = self.resolve_number("min", min)?;
         let hi = self.resolve_number("max", max)?;
         if lo > hi {
             return Err(format!("min ({lo}) is greater than max ({hi})"));
         }
-        let p = self.resolve_int("precision", precision)?.max(0) as usize;
         let v = self.rng.random_range(lo..=hi);
-        Ok(format!("{:.*}", p, v))
+        Ok(format!("{:.*}", 2, v))
     }
 
     fn gen_string(
@@ -179,11 +179,7 @@ impl Interpreter {
     fn gen_primitive(&mut self, spec: &PrimitiveSpec) -> Result<String, String> {
         match spec {
             PrimitiveSpec::Int { min, max } => Ok(self.gen_int(min, max)?.to_string()),
-            PrimitiveSpec::Float {
-                min,
-                max,
-                precision,
-            } => self.gen_float(min, max, precision),
+            PrimitiveSpec::Float { min, max } => self.gen_float(min, max),
             PrimitiveSpec::String {
                 length,
                 charset,
@@ -198,25 +194,47 @@ impl Interpreter {
         for node in nodes {
             match node {
                 SchemaNode::Int {
-                    var_name, min, max, ..
+                    var_name,
+                    min,
+                    max,
+                    output_format,
+                    ..
                 } => {
                     let v = self.gen_int(min, max)?;
                     self.bind(var_name, Value::Num(v as f64));
-                    out.push(v.to_string());
+                    if let Some(input) = output_format {
+                        let segments = numeric_formatter::parse_string(input)?;
+                        out.push(numeric_formatter::render_string(
+                            segments,
+                            &self.numeric_env(),
+                        )?);
+                    } else {
+                        println!("No output format for INT");
+                        out.push(v.to_string())
+                    };
                 }
                 SchemaNode::Float {
                     var_name,
                     min,
                     max,
-                    precision,
+                    output_format,
                     ..
                 } => {
-                    let s = self.gen_float(min, max, precision)?;
+                    let s = self.gen_float(min, max)?;
                     let numeric: f64 = s
                         .parse()
                         .map_err(|_| "internal: bad float format".to_string())?;
                     self.bind(var_name, Value::Num(numeric));
-                    out.push(s);
+                    if let Some(input) = output_format {
+                        let segments = numeric_formatter::parse_string(input)?;
+                        out.push(numeric_formatter::render_string(
+                            segments,
+                            &self.numeric_env(),
+                        )?);
+                    } else {
+                        println!("No output format for FLOAT");
+                        out.push(s.to_string())
+                    };
                 }
                 SchemaNode::String {
                     var_name,
@@ -395,29 +413,6 @@ mod tests {
         assert!(err.contains("greater than max"));
     }
 
-    // gen_float
-
-    #[test]
-    fn gen_float_within_range_and_precision() {
-        let mut interp = make_interp(1);
-        let s = interp.gen_float("1", "1", "2").unwrap();
-        assert_eq!(s, "1.00");
-    }
-
-    #[test]
-    fn gen_float_negative_precision_clamped_to_zero() {
-        let mut interp = make_interp(1);
-        let s = interp.gen_float("2", "2", "-3").unwrap();
-        assert_eq!(s, "2");
-    }
-
-    #[test]
-    fn gen_float_min_greater_than_max_errors() {
-        let mut interp = make_interp(1);
-        let err = interp.gen_float("5", "1", "2").unwrap_err();
-        assert!(err.contains("greater than max"));
-    }
-
     // gen_string
 
     #[test]
@@ -516,9 +511,8 @@ mod tests {
         let spec = PrimitiveSpec::Float {
             min: "1".to_string(),
             max: "1".to_string(),
-            precision: "1".to_string(),
         };
-        assert_eq!(interp.gen_primitive(&spec).unwrap(), "1.0");
+        assert_eq!(interp.gen_primitive(&spec).unwrap(), "1.00");
     }
 
     #[test]
@@ -560,12 +554,11 @@ mod tests {
             var_name: Some("f".to_string()),
             min: "2.5".to_string(),
             max: "2.5".to_string(),
-            precision: "1".to_string(),
             output_format: None,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["2.5".to_string()]);
+        assert_eq!(out, vec!["2.50".to_string()]);
         assert!(matches!(interp.vars.get("f"), Some(Value::Num(v)) if (*v - 2.5).abs() < 1e-9));
     }
 

@@ -67,7 +67,6 @@ export interface FloatNode extends BaseNode {
   kind: "float";
   min: string;
   max: string;
-  precision: string;
 }
 
 export interface StringNode extends BaseNode {

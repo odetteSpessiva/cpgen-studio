@@ -146,11 +146,6 @@ function PrimitiveFields({
           value={spec.max}
           onChange={(v) => onChange({ ...spec, max: v })}
         />
-        <TextField
-          label="Precision"
-          value={spec.precision}
-          onChange={(v) => onChange({ ...spec, precision: v })}
-        />
       </div>
     );
   }
@@ -238,7 +233,7 @@ export default function NodeFields({ node, onUpdate }: NodeFieldsProps) {
   if (node.kind === "array") {
     const defaultElements: Record<PrimitiveSpec["kind"], PrimitiveSpec> = {
       int: { kind: "int", min: "1", max: "100" },
-      float: { kind: "float", min: "0.0", max: "1.0", precision: "2" },
+      float: { kind: "float", min: "0.0", max: "1.0" },
       string: { kind: "string", length: "10", charset: "lowercase" },
     };
 
