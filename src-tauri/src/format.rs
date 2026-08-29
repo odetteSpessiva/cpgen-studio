@@ -80,6 +80,18 @@ pub fn parse_string(mut input: &str) -> Result<Vec<Segment<'_>>, String> {
 
             segments.push(Segment::Placeholder { expr, spec });
             input = &input[close_idx + 1..];
+        } else if let Some(close_idx) = input.find("}") {
+            if !input[close_idx..].starts_with("}}") {
+                return Err(format!(
+                    "Unmatched '}}' in format string near '{}'",
+                    &input[close_idx..]
+                ));
+            }
+            if close_idx > 0 {
+                segments.push(Segment::Literal(&input[..close_idx]));
+            }
+            segments.push(Segment::Literal("}"));
+            input = &input[close_idx + 2..];
         } else {
             segments.push(Segment::Literal(input));
             break;
@@ -152,5 +164,5 @@ pub fn render_string(segments: Vec<Segment>, env: &HashMap<String, f64>) -> Resu
             Segment::Placeholder { expr, spec } => output.push_str(eval(expr, spec, env)?.as_str()),
         }
     }
-    Ok(output)
+    unescaper::unescape(&output).map_err(|err| format!("Failed formatting text: {err}"))
 }

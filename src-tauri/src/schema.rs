@@ -141,14 +141,14 @@ impl Interpreter {
         Ok(self.rng.random_range(lo..=hi))
     }
 
-    fn gen_float(&mut self, min: &str, max: &str) -> Result<String, String> {
+    fn gen_float(&mut self, min: &str, max: &str) -> Result<f64, String> {
         let lo = self.resolve_number("min", min)?;
         let hi = self.resolve_number("max", max)?;
         if lo > hi {
             return Err(format!("min ({lo}) is greater than max ({hi})"));
         }
         let v = self.rng.random_range(lo..=hi);
-        Ok(format!("{:.*}", 2, v))
+        Ok(v)
     }
 
     fn gen_string(
@@ -179,7 +179,9 @@ impl Interpreter {
     fn gen_primitive(&mut self, spec: &PrimitiveSpec) -> Result<String, String> {
         match spec {
             PrimitiveSpec::Int { min, max } => Ok(self.gen_int(min, max)?.to_string()),
-            PrimitiveSpec::Float { min, max } => self.gen_float(min, max),
+            PrimitiveSpec::Float { min, max } => {
+                self.gen_float(min, max).map(|res| format!("{res:.2}"))
+            }
             PrimitiveSpec::String {
                 length,
                 charset,
@@ -209,8 +211,7 @@ impl Interpreter {
                             &self.numeric_env(),
                         )?);
                     } else {
-                        println!("No output format for INT");
-                        out.push(v.to_string())
+                        out.push(v.to_string() + "\n")
                     };
                 }
                 SchemaNode::Float {
@@ -220,11 +221,8 @@ impl Interpreter {
                     output_format,
                     ..
                 } => {
-                    let s = self.gen_float(min, max)?;
-                    let numeric: f64 = s
-                        .parse()
-                        .map_err(|_| "internal: bad float format".to_string())?;
-                    self.bind(var_name, Value::Num(numeric));
+                    let v = self.gen_float(min, max)?;
+                    self.bind(var_name, Value::Num(v));
                     if let Some(input) = output_format {
                         let segments = numeric_formatter::parse_string(input)?;
                         out.push(numeric_formatter::render_string(
@@ -232,8 +230,7 @@ impl Interpreter {
                             &self.numeric_env(),
                         )?);
                     } else {
-                        println!("No output format for FLOAT");
-                        out.push(s.to_string())
+                        out.push(format!("{v:.2}") + "\n")
                     };
                 }
                 SchemaNode::String {
@@ -245,7 +242,7 @@ impl Interpreter {
                 } => {
                     let s = self.gen_string(length, charset, custom_charset)?;
                     self.bind(var_name, Value::Text);
-                    out.push(s);
+                    out.push(s + "\n");
                 }
                 SchemaNode::Array {
                     var_name,
@@ -269,7 +266,7 @@ impl Interpreter {
                     }
                     let line = items.join(sep);
                     self.bind(var_name, Value::Text);
-                    out.push(line);
+                    out.push(line + "\n");
                 }
                 SchemaNode::Loop {
                     count, children, ..
@@ -299,7 +296,7 @@ pub fn generate(nodes: &[SchemaNode], seed: Option<u64>) -> Result<String, Strin
     };
     let mut lines = Vec::new();
     interp.eval_nodes(nodes, &mut lines)?;
-    Ok(lines.join("\n"))
+    Ok(lines.join(""))
 }
 
 #[cfg(test)]
