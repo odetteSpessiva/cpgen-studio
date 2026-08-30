@@ -15,9 +15,9 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] **Problem name field**: expose the problem name field already supported by the generation backend (currently hardcoded on the frontend)
 - [x] **Starting index for test generation**: configurable starting index instead of a fixed default
 - [ ] **Optional solution file**: support generating tests only, without requiring a solution file
-- [ ] **Per-block separator field**: configurable separator between block outputs (currently hardcoded to newline)
-- [ ] **Field output expressions**: allow a field's output to be a derived expression (e.g. output `2*Q` instead of the raw generated value)
-- [ ] **Optional block output**: a block is omitted from output entirely when its output expression evaluates to empty/blank
+- [x] **Per-block separator field**: configurable separator between block outputs (currently hardcoded to newline)
+- [x] **Field output expressions**: allow a field's output to be a derived expression (e.g. output `2*Q` instead of the raw generated value)
+- [x] **Optional block output**: a block is omitted from output entirely when its output expression evaluates to empty/blank
 - [ ] **Conditional block**: an `IF` block supporting basic branching logic within a schema tree
 - [ ] **Additional block types**: expand the block library over time
 - [x] **Savable schema**: export/import the schema as JSON
