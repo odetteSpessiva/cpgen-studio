@@ -538,7 +538,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["4".to_string()]);
+        assert_eq!(out, vec!["4\n".to_string()]);
         assert!(matches!(interp.vars.get("n"), Some(Value::Num(v)) if *v == 4.0));
     }
 
@@ -555,7 +555,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["2.50".to_string()]);
+        assert_eq!(out, vec!["2.50\n".to_string()]);
         assert!(matches!(interp.vars.get("f"), Some(Value::Num(v)) if (*v - 2.5).abs() < 1e-9));
     }
 
@@ -572,7 +572,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out[0].len(), 5);
+        assert_eq!(out[0].len(), 6);
         assert!(matches!(interp.vars.get("s"), Some(Value::Text)));
     }
 
@@ -592,7 +592,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["1 1 1".to_string()]);
+        assert_eq!(out, vec!["1 1 1\n".to_string()]);
     }
 
     #[test]
@@ -609,7 +609,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["2\n2".to_string()]);
+        assert_eq!(out, vec!["2\n2\n".to_string()]);
     }
 
     #[test]
@@ -626,7 +626,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["3,3".to_string()]);
+        assert_eq!(out, vec!["3,3\n".to_string()]);
     }
 
     #[test]
@@ -677,7 +677,7 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["".to_string()]);
+        assert_eq!(out, vec!["\n".to_string()]);
     }
 
     // eval_nodes: Loop
@@ -696,7 +696,10 @@ mod tests {
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out, vec!["9".to_string(), "9".to_string(), "9".to_string()]);
+        assert_eq!(
+            out,
+            vec!["9\n".to_string(), "9\n".to_string(), "9\n".to_string()]
+        );
     }
 
     #[test]
@@ -769,7 +772,7 @@ mod tests {
         ];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
-        assert_eq!(out[1], "1 1 1 1 1");
+        assert_eq!(out[1], "1 1 1 1 1\n");
     }
 
     #[test]
@@ -813,7 +816,7 @@ mod tests {
             },
         ];
         let result = generate(&nodes, Some(42)).unwrap();
-        assert_eq!(result, "1\n2");
+        assert_eq!(result, "1\n2\n");
     }
 
     #[test]
@@ -838,7 +841,7 @@ mod tests {
             output_format: None,
         }];
         let result = generate(&nodes, None).unwrap();
-        let v: i64 = result.parse().unwrap();
+        let v: i64 = result.trim().parse().unwrap();
         assert!((1..=10).contains(&v));
     }
 
