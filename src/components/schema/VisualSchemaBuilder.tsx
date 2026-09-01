@@ -79,7 +79,6 @@ export default function VisualSchemaBuilder() {
         varName: "",
         min: "0.0",
         max: "1.0",
-        precision: "2",
       },
       string: {
         id,
@@ -104,7 +103,7 @@ export default function VisualSchemaBuilder() {
     };
 
     const newNode = defaults[kind];
-    let isContainer =
+    const isContainer =
       selectedKind !== null ? getNodeKindMeta(selectedKind).hasChildren : false;
     setNodes((prev) =>
       isContainer && selectedId
