@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CPGen Studio",
-  "version": "0.2.3-alpha.1",
+  "version": "0.2.4-alpha.1",
   "identifier": "me.chisa.cpgen-studio",
   "build": {
     "beforeDevCommand": "npm run dev",
