@@ -1,6 +1,6 @@
 # Roadmap
 
-CPGen Studio is currently in alpha (`0.2.2-alpha.1`). This document tracks the features planned for the `1.0` release.
+CPGen Studio is currently in alpha (`0.2.4-alpha.1`). This document tracks the features planned for the `1.0` release.
 
 ## Milestone: 1.0
 
