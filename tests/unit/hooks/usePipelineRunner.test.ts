@@ -56,10 +56,12 @@ describe("usePipelineRunner", () => {
 
     expect(mockedInvoke).toHaveBeenCalledWith("generate_tests_from_schema", {
       schema: expect.any(Array),
-      solPath: "/tmp/sol.cpp",
-      outputPath: "/tmp/out",
-      testName: "demo",
-      testCount: 3,
+      config: {
+        solPath: "/tmp/sol.cpp",
+        outputPath: "/tmp/out",
+        testName: "demo",
+        testCount: 3,
+      },
       seed: null,
     });
     expect(appendLog).toHaveBeenCalledWith(

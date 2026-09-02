@@ -50,10 +50,6 @@ export function usePipelineRunner(
       appendLog("warn", "Generator file must be selected.");
       return;
     }
-    if (!solutionFile?.path || !outputPath) {
-      appendLog("warn", "Solution file and output path must be selected.");
-      return;
-    }
 
     isRunningRef.current = true;
     setIsRunning(true);
@@ -81,27 +77,24 @@ export function usePipelineRunner(
         },
       );
 
-      if (usingSchema) {
-        await invoke("generate_tests_from_schema", {
-          schema: nodes,
-          solPath: solutionFile.path,
-          outputPath: outputPath,
-          testName: config.problemName,
-          testCount: config.batches,
-          startId: config.startIndex,
-          seed: null,
-        });
-      } else {
-        await invoke("generate_tests", {
-          genPath: generatorFile!.path,
-          solPath: solutionFile.path,
-          outputPath: outputPath,
-          testName: config.problemName,
-          testCount: config.batches,
-          startId: config.startIndex,
-          indexAsArg: config.indexDelivery === "argv[1]",
-        });
-      }
+      const commonArgs = {
+        solPath: solutionFile?.path,
+        outputPath,
+        testName: config.problemName,
+        testCount: config.batches,
+        startId: config.startIndex,
+      };
+
+      await invoke(
+        usingSchema ? "generate_tests_from_schema" : "generate_tests",
+        usingSchema
+          ? { config: commonArgs, schema: nodes, seed: null }
+          : {
+              config: commonArgs,
+              genPath: generatorFile!.path,
+              indexAsArg: config.indexDelivery === "argv[1]",
+            },
+      );
 
       appendLog("success", "All tests generated and saved successfully!");
     } catch (err) {
