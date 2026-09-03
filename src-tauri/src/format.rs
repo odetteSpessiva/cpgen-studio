@@ -48,53 +48,71 @@ fn parse_format(input: &mut &str) -> PResult<FormatSpecs> {
     })
 }
 
+fn handle_escaped_close<'a>(
+    input: &'a str,
+    close: usize,
+    segments: &mut Vec<Segment<'a>>,
+) -> Result<&'a str, String> {
+    if !input[close..].starts_with("}}") {
+        return Err(format!(
+            "Unmatched '}}' in format string at byte {close} near '{}'",
+            &input[close..]
+        ));
+    }
+    if close > 0 {
+        segments.push(Segment::Literal(&input[..close]));
+    }
+    segments.push(Segment::Literal("}"));
+    Ok(&input[close + 2..])
+}
+
 pub fn parse_string(mut input: &str) -> Result<Vec<Segment<'_>>, String> {
     let mut segments = Vec::new();
 
     while !input.is_empty() {
-        if let Some(open_idx) = input.find("{") {
-            if open_idx > 0 {
-                segments.push(Segment::Literal(&input[..open_idx]));
-            }
-            if input[open_idx..].starts_with("{{") {
-                segments.push(Segment::Literal("{"));
-                input = &input[open_idx + 2..];
-                continue;
-            }
-            let close_idx = input[open_idx..]
-                .find("}")
-                .map(|i| open_idx + i)
-                .ok_or_else(|| "Unmatched '{' in format string".to_string())?;
+        let open_idx = input.find('{');
+        let close_idx = input.find('}');
 
-            let block = &input[open_idx + 1..close_idx];
-
-            let (expr, spec) = match block.split_once(':') {
-                Some((e, s)) => {
-                    let mut s_ref = s.trim();
-                    let parsed_specs = parse_format(&mut s_ref)
-                        .map_err(|err| format!("Invalid specifier '{s}': {err}"))?;
-                    (e.trim(), Some(parsed_specs))
+        match (open_idx, close_idx) {
+            (None, Some(close_idx)) => {
+                input = handle_escaped_close(input, close_idx, &mut segments)?;
+            }
+            (Some(open_idx), Some(close_idx)) if close_idx < open_idx => {
+                input = handle_escaped_close(input, close_idx, &mut segments)?;
+            }
+            (Some(open_idx), _) => {
+                if open_idx > 0 {
+                    segments.push(Segment::Literal(&input[..open_idx]));
                 }
-                None => (block.trim(), None),
-            };
+                if input[open_idx..].starts_with("{{") {
+                    segments.push(Segment::Literal("{"));
+                    input = &input[open_idx + 2..];
+                    continue;
+                }
 
-            segments.push(Segment::Placeholder { expr, spec });
-            input = &input[close_idx + 1..];
-        } else if let Some(close_idx) = input.find("}") {
-            if !input[close_idx..].starts_with("}}") {
-                return Err(format!(
-                    "Unmatched '}}' in format string near '{}'",
-                    &input[close_idx..]
-                ));
+                let close_idx = input[open_idx..]
+                    .find('}')
+                    .map(|i| open_idx + i)
+                    .ok_or_else(|| format!("Unmatched '{{' in format string at byte {open_idx}"))?;
+
+                let block = &input[open_idx + 1..close_idx];
+                let (expr, spec) = match block.split_once(':') {
+                    Some((e, s)) => {
+                        let mut s_ref = s.trim();
+                        let parsed_specs = parse_format(&mut s_ref)
+                            .map_err(|err| format!("Invalid specifier '{s}': {err}"))?;
+                        (e.trim(), Some(parsed_specs))
+                    }
+                    None => (block.trim(), None),
+                };
+
+                segments.push(Segment::Placeholder { expr, spec });
+                input = &input[close_idx + 1..];
             }
-            if close_idx > 0 {
-                segments.push(Segment::Literal(&input[..close_idx]));
+            (None, None) => {
+                segments.push(Segment::Literal(input));
+                break;
             }
-            segments.push(Segment::Literal("}"));
-            input = &input[close_idx + 2..];
-        } else {
-            segments.push(Segment::Literal(input));
-            break;
         }
     }
     Ok(segments)
@@ -165,4 +183,52 @@ pub fn render_string(segments: Vec<Segment>, env: &HashMap<String, f64>) -> Resu
         }
     }
     unescaper::unescape(&output).map_err(|err| format!("Failed formatting text: {err}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_string, render_string, Segment};
+    use std::collections::HashMap;
+
+    #[test]
+    fn parses_and_renders_expression_with_precision() {
+        let segments = parse_string("value={x + 1:.2f}").unwrap();
+        let mut env = HashMap::new();
+        env.insert("x".to_string(), 1.25);
+
+        assert_eq!(render_string(segments, &env).unwrap(), "value=2.25");
+    }
+
+    #[test]
+    fn renders_escaped_braces_as_literals() {
+        let segments = parse_string("{{value}}={x}").unwrap();
+        let mut env = HashMap::new();
+        env.insert("x".to_string(), 3.0);
+
+        assert_eq!(render_string(segments, &env).unwrap(), "{value}=3");
+    }
+
+    #[test]
+    fn applies_width_and_alignment() {
+        let segments = parse_string("{x:*^7.1f}").unwrap();
+        let mut env = HashMap::new();
+        env.insert("x".to_string(), 2.0);
+
+        assert_eq!(render_string(segments, &env).unwrap(), "**2.0**");
+    }
+
+    #[test]
+    fn rejects_unmatched_braces() {
+        assert!(parse_string("value={x").is_err());
+        assert!(parse_string("value=x}").is_err());
+    }
+
+    #[test]
+    fn parses_literal_only_input() {
+        let segments = parse_string("plain text").unwrap();
+        assert!(matches!(
+            segments.as_slice(),
+            [Segment::Literal("plain text")]
+        ));
+    }
 }

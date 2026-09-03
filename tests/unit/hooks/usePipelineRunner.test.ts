@@ -104,6 +104,47 @@ describe("usePipelineRunner", () => {
       seed: null,
     });
   });
+
+  it("passes files mode options inside the shared backend config", async () => {
+    const appendLog = vi.fn();
+    const mockedInvoke = vi.mocked(invoke);
+    const mockedListen = vi.mocked(listen);
+    mockedListen.mockResolvedValueOnce(vi.fn());
+    mockedInvoke.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() =>
+      usePipelineRunner(
+        { path: "/tmp/generator.py" } as WorkspaceFile,
+        { path: "/tmp/sol.cpp" } as WorkspaceFile,
+        "/tmp/out",
+        {
+          batches: 4,
+          startIndex: 7,
+          problemName: "demo",
+          indexDelivery: "argv[1]",
+        } as ConfigState,
+        appendLog,
+        "files",
+        [],
+      ),
+    );
+
+    await act(async () => {
+      await result.current.executePipeline();
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("generate_tests", {
+      config: {
+        solPath: "/tmp/sol.cpp",
+        outputPath: "/tmp/out",
+        testName: "demo",
+        testCount: 4,
+        startId: 7,
+      },
+      genPath: "/tmp/generator.py",
+      indexAsArg: true,
+    });
+  });
 });
 
 describe("concurrent invocation", () => {

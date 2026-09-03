@@ -101,3 +101,62 @@ fn validate_primitive_spec(spec: &PrimitiveSpec, path: &str, errors: &mut Vec<Va
         validate_charset(charset, custom_charset, path, errors);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::validate;
+    use crate::schema::{Charset, SchemaNode};
+
+    #[test]
+    fn accepts_valid_output_format_and_custom_charset() {
+        let nodes = vec![
+            SchemaNode::Int {
+                var_name: Some("n".to_string()),
+                min: "1".to_string(),
+                max: "10".to_string(),
+                output_format: Some("n={n}".to_string()),
+            },
+            SchemaNode::String {
+                var_name: None,
+                length: "3".to_string(),
+                charset: Charset::Custom,
+                custom_charset: Some("abc".to_string()),
+            },
+        ];
+
+        assert!(validate(&nodes).is_ok());
+    }
+
+    #[test]
+    fn reports_output_format_without_variable_name() {
+        let nodes = vec![SchemaNode::Float {
+            var_name: Some(String::new()),
+            min: "0".to_string(),
+            max: "1".to_string(),
+            output_format: Some("{value}".to_string()),
+        }];
+
+        let errors = validate(&nodes).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].path, "root[0]");
+        assert!(errors[0].message.contains("varName is empty"));
+    }
+
+    #[test]
+    fn reports_nested_custom_charset_error_with_full_path() {
+        let nodes = vec![SchemaNode::Loop {
+            count: "T".to_string(),
+            children: vec![SchemaNode::String {
+                var_name: None,
+                length: "3".to_string(),
+                charset: Charset::Custom,
+                custom_charset: None,
+            }],
+        }];
+
+        let errors = validate(&nodes).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].path, "root[0][0]");
+        assert!(errors[0].message.contains("customCharset is empty"));
+    }
+}
