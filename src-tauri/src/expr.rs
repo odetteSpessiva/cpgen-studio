@@ -54,6 +54,17 @@ pub enum Token {
     LParen,
     RParen,
     EOF,
+    True,
+    False,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    EqEq,
+    NotEq,
+    AndAnd,
+    OrOr,
+    Bang,
 }
 
 impl TryFrom<&str> for Token {
@@ -96,21 +107,21 @@ impl Parser {
         Self { tokens, cur: 0 }
     }
 
-    fn peek(&self) -> &Token {
+    pub fn peek(&self) -> &Token {
         if self.cur >= self.tokens.len() {
             return &Token::EOF;
         }
         &self.tokens[self.cur]
     }
 
-    fn _look_ahead(&self, count: usize) -> &Token {
+    pub fn _look_ahead(&self, count: usize) -> &Token {
         if self.cur + count >= self.tokens.len() {
             return &Token::EOF;
         }
         &self.tokens[self.cur + count]
     }
 
-    fn consume(&mut self) -> Token {
+    pub fn consume(&mut self) -> Token {
         if self.cur >= self.tokens.len() {
             return Token::EOF;
         }
@@ -118,7 +129,7 @@ impl Parser {
         self.tokens[self.cur - 1].clone()
     }
 
-    fn parse_add(&mut self) -> Result<Expr, String> {
+    pub fn parse_add(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_mul()?;
         while matches!(self.peek(), Token::Plus | Token::Minus) {
             let op = self.consume();
@@ -132,7 +143,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_mul(&mut self) -> Result<Expr, String> {
+    pub fn parse_mul(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_primary()?;
         while matches!(self.peek(), Token::Star | Token::Slash) {
             let op = self.consume();
@@ -146,7 +157,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_primary(&mut self) -> Result<Expr, String> {
+    pub fn parse_primary(&mut self) -> Result<Expr, String> {
         match self.peek() {
             &Token::Plus => {
                 self.consume();
@@ -188,6 +199,14 @@ impl Parser {
             return Ok(ast);
         }
         Err(format!("Unexpected token: {:?}", self.peek()))
+    }
+
+    pub fn position(&self) -> usize {
+        self.cur
+    }
+
+    pub fn seek(&mut self, pos: usize) {
+        self.cur = pos;
     }
 }
 

@@ -1,3 +1,4 @@
+mod cmp_expr;
 mod expr;
 mod format;
 mod lsp;
