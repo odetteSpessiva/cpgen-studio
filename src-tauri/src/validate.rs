@@ -54,6 +54,18 @@ fn validate_node(node: &SchemaNode, path: &str, errors: &mut Vec<ValidationError
         SchemaNode::Loop { children, .. } => {
             validate_nodes(children, path, errors);
         }
+        SchemaNode::If {
+            if_children,
+            else_children,
+            ..
+        } => {
+            if let Some(if_children) = if_children {
+                validate_nodes(if_children, &format!("{path}.ifChildren"), errors);
+            }
+            if let Some(else_children) = else_children {
+                validate_nodes(else_children, &format!("{path}.elseChildren"), errors);
+            }
+        }
     }
 }
 
@@ -158,5 +170,30 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].path, "root[0][0]");
         assert!(errors[0].message.contains("customCharset is empty"));
+    }
+
+    #[test]
+    fn reports_errors_in_if_and_else_branches_with_distinct_paths() {
+        let nodes = vec![SchemaNode::If {
+            condition: "true".to_string(),
+            if_children: Some(vec![SchemaNode::Float {
+                var_name: None,
+                min: "0".to_string(),
+                max: "1".to_string(),
+                output_format: Some("{value}".to_string()),
+            }]),
+            else_children: Some(vec![SchemaNode::String {
+                var_name: None,
+                length: "1".to_string(),
+                charset: Charset::Custom,
+                custom_charset: None,
+            }]),
+        }];
+
+        let errors = validate(&nodes).unwrap_err();
+
+        assert_eq!(errors.len(), 2);
+        assert_eq!(errors[0].path, "root[0].ifChildren[0]");
+        assert_eq!(errors[1].path, "root[0].elseChildren[0]");
     }
 }

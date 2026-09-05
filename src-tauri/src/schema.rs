@@ -1,3 +1,4 @@
+use crate::cmp_expr;
 use crate::expr;
 use crate::format as numeric_formatter;
 use rand::{rngs::StdRng, Rng, RngExt, SeedableRng};
@@ -78,6 +79,13 @@ pub enum SchemaNode {
     Loop {
         count: String,
         children: Vec<SchemaNode>,
+    },
+    If {
+        condition: String,
+        #[serde(rename = "ifChildren")]
+        if_children: Option<Vec<SchemaNode>>,
+        #[serde(rename = "elseChildren")]
+        else_children: Option<Vec<SchemaNode>>,
     },
 }
 
@@ -272,11 +280,26 @@ impl Interpreter {
                     count, children, ..
                 } => {
                     let reps = self.resolve_int("count", count)?;
-                    if reps < 0 {
-                        return Err(format!("loop count ({reps}) cannot be negative"));
-                    }
                     for _ in 0..reps {
                         self.eval_nodes(children, out)?;
+                    }
+                }
+                SchemaNode::If {
+                    condition,
+                    if_children,
+                    else_children,
+                } => {
+                    let tokens = cmp_expr::tokenize(condition)?;
+                    let mut parser = cmp_expr::Parser::new(tokens);
+                    let condition_result = parser.parse()?.eval(&self.numeric_env())?;
+                    if condition_result {
+                        if let Some(if_children) = if_children {
+                            self.eval_nodes(if_children, out)?;
+                        }
+                    } else {
+                        if let Some(else_children) = else_children {
+                            self.eval_nodes(else_children, out)?;
+                        }
                     }
                 }
             }
@@ -720,15 +743,15 @@ mod tests {
     }
 
     #[test]
-    fn eval_nodes_loop_negative_count_errors() {
+    fn eval_nodes_loop_negative_count() {
         let mut interp = make_interp(1);
         let nodes = vec![SchemaNode::Loop {
             count: "-2".to_string(),
             children: vec![],
         }];
         let mut out = Vec::new();
-        let err = interp.eval_nodes(&nodes, &mut out).unwrap_err();
-        assert!(err.contains("cannot be negative"));
+        interp.eval_nodes(&nodes, &mut out).unwrap();
+        assert!(out.is_empty());
     }
 
     #[test]
@@ -746,6 +769,98 @@ mod tests {
         let mut out = Vec::new();
         let err = interp.eval_nodes(&nodes, &mut out).unwrap_err();
         assert!(err.contains("greater than max"));
+    }
+
+    // eval_nodes: If
+
+    #[test]
+    fn eval_nodes_if_selects_branch_using_numeric_variable() {
+        let mut interp = make_interp(1);
+        let nodes = vec![
+            SchemaNode::Int {
+                var_name: Some("n".to_string()),
+                min: "3".to_string(),
+                max: "3".to_string(),
+                output_format: None,
+            },
+            SchemaNode::If {
+                condition: "n > 2".to_string(),
+                if_children: Some(vec![SchemaNode::Int {
+                    var_name: None,
+                    min: "1".to_string(),
+                    max: "1".to_string(),
+                    output_format: None,
+                }]),
+                else_children: Some(vec![SchemaNode::Int {
+                    var_name: None,
+                    min: "2".to_string(),
+                    max: "2".to_string(),
+                    output_format: None,
+                }]),
+            },
+        ];
+        let mut out = Vec::new();
+
+        interp.eval_nodes(&nodes, &mut out).unwrap();
+
+        assert_eq!(out, vec!["3\n".to_string(), "1\n".to_string()]);
+    }
+
+    #[test]
+    fn eval_nodes_if_does_not_evaluate_unselected_branch() {
+        let mut interp = make_interp(1);
+        let nodes = vec![SchemaNode::If {
+            condition: "false".to_string(),
+            if_children: Some(vec![SchemaNode::Int {
+                var_name: None,
+                min: "5".to_string(),
+                max: "1".to_string(),
+                output_format: None,
+            }]),
+            else_children: Some(vec![SchemaNode::Int {
+                var_name: None,
+                min: "7".to_string(),
+                max: "7".to_string(),
+                output_format: None,
+            }]),
+        }];
+        let mut out = Vec::new();
+
+        interp.eval_nodes(&nodes, &mut out).unwrap();
+
+        assert_eq!(out, vec!["7\n".to_string()]);
+    }
+
+    #[test]
+    fn eval_nodes_if_reports_invalid_condition() {
+        let mut interp = make_interp(1);
+        let nodes = vec![SchemaNode::If {
+            condition: "n >".to_string(),
+            if_children: None,
+            else_children: None,
+        }];
+        let mut out = Vec::new();
+
+        let err = interp.eval_nodes(&nodes, &mut out).unwrap_err();
+
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn if_node_deserializes_branch_field_names() {
+        let node: SchemaNode = serde_json::from_str(
+            r#"{"kind":"if","condition":"true","ifChildren":[],"elseChildren":null}"#,
+        )
+        .unwrap();
+
+        assert!(matches!(
+            node,
+            SchemaNode::If {
+                condition,
+                if_children: Some(_),
+                else_children: None,
+            } if condition == "true"
+        ));
     }
 
     // cross-node variable interaction
