@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useWorkspaceFiles } from "../../../src/hooks/useWorkspaceFiles";
+import { useWorkspaceFiles } from "../../../src/hooks/useWorkspace";
 import type { WorkspaceFilePayload } from "../../../src/types";
 
 const mockedInvoke = vi.mocked(invoke);

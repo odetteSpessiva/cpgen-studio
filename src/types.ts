@@ -43,7 +43,7 @@ export interface ConfigState {
   indexDelivery: "argv[1]" | "stdin";
 }
 
-export type FieldKind = "int" | "float" | "string" | "array" | "loop";
+export type FieldKind = "int" | "float" | "string" | "array" | "loop" | "if";
 export type PrimitiveSpec =
   | Omit<IntNode, "id" | "varName">
   | Omit<FloatNode, "id" | "varName">
@@ -53,7 +53,6 @@ export interface BaseNode {
   id: string;
   kind: FieldKind;
   varName?: string;
-  children?: SchemaNode[];
   outputFormat?: string;
 }
 
@@ -89,5 +88,12 @@ export interface LoopNode extends BaseNode {
   children: SchemaNode[];
 }
 
+export interface IfNode extends BaseNode {
+  kind: "if";
+  condition: string;
+  ifChildren: SchemaNode[];
+  elseChildren: SchemaNode[];
+}
+
 export type SchemaNode =
-  IntNode | FloatNode | StringNode | ArrayNode | LoopNode;
+  IntNode | FloatNode | StringNode | ArrayNode | LoopNode | IfNode;

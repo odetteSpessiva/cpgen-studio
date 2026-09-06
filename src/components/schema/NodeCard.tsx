@@ -7,68 +7,149 @@ import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import type { SchemaNode } from "../../types";
 import { getNodeKindMeta } from "../../utils/nodeMeta";
+import { isContainerNode } from "../../utils/schemaTree";
 import NodeFields from "./NodeFields";
 
 function ChildrenContainer({
   node,
   selectedId,
+  selectedBranch,
   onSelect,
+  onSelectBranch,
   onUpdate,
   onRemove,
 }: {
   node: SchemaNode;
   selectedId: string | null;
+  selectedBranch: "if" | "else" | null;
   onSelect: NodeCardProps["onSelect"];
+  onSelectBranch: NodeCardProps["onSelectBranch"];
   onUpdate: NodeCardProps["onUpdate"];
   onRemove: NodeCardProps["onRemove"];
 }) {
+  const [showElseBranch, setShowElseBranch] = useState(
+    node.kind === "if" && node.elseChildren.length > 0,
+  );
   const nodeMeta = getNodeKindMeta(node.kind);
-  const children = node.children ?? [];
+  const children = isContainerNode(node) ? node.children : [];
 
   const style = {
     borderLeftColor: nodeMeta.color.border,
     backgroundColor: "var(--bg-primary)",
   };
 
-  return (
-    <div
-      className="pl-2 border-l-2 bg-(--bg-primary) p-2 rounded space-y-2 min-h-12"
-      style={style}
-    >
-      <div className="text-[10px] text-(--text-muted) uppercase font-semibold">
-        {node.kind} container
-      </div>
-      {children.length === 0 ? (
-        <div className="text-[11px] text-(--text-muted) italic text-center py-2 border border-dashed border-(--border) rounded">
-          Select this node to add blocks inside
+  const renderChildren = (
+    branchChildren: SchemaNode[],
+    label: string,
+    branch?: "if" | "else",
+  ) => {
+    const isSelected =
+      branch !== undefined &&
+      selectedId === node.id &&
+      selectedBranch === branch;
+    const isBranch = branch !== undefined;
+
+    return (
+      <div
+        className={`pl-2 border-l-2 p-2 rounded space-y-2 min-h-12 ${isSelected ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}`}
+        style={
+          isSelected
+            ? {
+                ...style,
+                borderLeftColor: nodeMeta.color.accent,
+                boxShadow: `inset 2px 0 0 ${nodeMeta.color.accent}`,
+              }
+            : style
+        }
+        onClick={
+          isBranch
+            ? (e) => {
+                e.stopPropagation();
+                onSelectBranch(node.id, branch);
+              }
+            : undefined
+        }
+      >
+        <div className="flex items-center justify-between text-[10px] text-(--text-muted) uppercase font-semibold">
+          <span>{label}</span>
+          {branch === "else" && branchChildren.length === 0 && (
+            <button
+              type="button"
+              aria-label="Hide empty ELSE branch"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowElseBranch(false);
+                onSelectBranch(node.id, "if");
+              }}
+              className="text-(--text-muted) hover:text-(--text-primary) px-1 cursor-pointer"
+            >
+              x
+            </button>
+          )}
         </div>
-      ) : (
-        <SortableContext
-          items={children.map((c) => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2">
-            {children.map((child) => (
-              <NodeCard
-                key={child.id}
-                node={child}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onUpdate={onUpdate}
-                onRemove={onRemove}
-              />
-            ))}
+        {branchChildren.length === 0 ? (
+          <div className="text-[11px] text-(--text-muted) italic text-center py-2 border border-dashed border-(--border) rounded">
+            Select this to add blocks inside
           </div>
-        </SortableContext>
-      )}
-    </div>
-  );
+        ) : (
+          <SortableContext
+            items={branchChildren.map((child) => child.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {branchChildren.map((child) => (
+                <NodeCard
+                  key={child.id}
+                  node={child}
+                  selectedId={selectedId}
+                  selectedBranch={selectedBranch}
+                  onSelect={onSelect}
+                  onSelectBranch={onSelectBranch}
+                  onUpdate={onUpdate}
+                  onRemove={onRemove}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        )}
+      </div>
+    );
+  };
+
+  if (node.kind === "if") {
+    const shouldShowElseBranch = showElseBranch || node.elseChildren.length > 0;
+
+    return (
+      <div className="space-y-2">
+        {renderChildren(node.ifChildren, "IF", "if")}
+        {shouldShowElseBranch ? (
+          renderChildren(node.elseChildren, "ELSE", "else")
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowElseBranch(true);
+              onSelectBranch(node.id, "else");
+            }}
+            className="self-start border border-dashed border-(--border) rounded px-1.5 py-0.5 text-[10px] text-(--text-muted) hover:text-(--text-primary) hover:border-(--accent) cursor-pointer transition-colors"
+          >
+            + ELSE
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return renderChildren(children, `${node.kind} container`);
 }
 
 interface NodeCardProps {
   node: SchemaNode;
   selectedId: string | null;
+  selectedBranch: "if" | "else" | null;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onSelectBranch: (id: string, branch: "if" | "else") => void;
   onUpdate: (id: string, updated: Partial<SchemaNode>) => void;
   onRemove: (id: string) => void;
 }
@@ -76,7 +157,9 @@ interface NodeCardProps {
 function NodeCard({
   node,
   selectedId,
+  selectedBranch,
   onSelect,
+  onSelectBranch,
   onUpdate,
   onRemove,
 }: NodeCardProps) {
@@ -162,7 +245,12 @@ function NodeCard({
             onChange={(e) =>
               onUpdate(node.id, nodeMeta.setHeaderValue!(e.target.value))
             }
-            className="w-20 bg-(--bg-input) border border-(--border) text-(--text-primary) px-1.5 py-0.5 rounded text-xs outline-none focus:border-(--accent) cursor-text"
+            className="bg-(--bg-input) border border-(--border) text-(--text-primary) px-1.5 py-0.5 rounded text-xs outline-none focus:border-(--accent) cursor-text"
+            style={{
+              fieldSizing: "content",
+              minWidth: "4rem",
+              maxWidth: "min(28rem, 100%)",
+            }}
           />
         )}
 
@@ -205,7 +293,9 @@ function NodeCard({
             <ChildrenContainer
               node={node}
               selectedId={selectedId}
+              selectedBranch={selectedBranch}
               onSelect={onSelect}
+              onSelectBranch={onSelectBranch}
               onUpdate={onUpdate}
               onRemove={onRemove}
             />

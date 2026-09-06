@@ -13,6 +13,7 @@ const ADDABLE_KINDS: { kind: FieldKind; label: string }[] = [
   { kind: "string", label: "+ String" },
   { kind: "array", label: "+ Array" },
   { kind: "loop", label: "+ Loop" },
+  { kind: "if", label: "+ If" },
 ];
 
 const BUTTON_CLASS =

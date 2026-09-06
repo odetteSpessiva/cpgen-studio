@@ -40,6 +40,11 @@ export function usePipelineRunner(
   const executePipeline = async () => {
     if (isRunningRef.current) return;
 
+    if (!outputPath) {
+      appendLog("warn", "Output path must be selected.");
+      return;
+    }
+
     const usingSchema = generatorMode === "visual";
 
     if (usingSchema && nodes.length === 0) {

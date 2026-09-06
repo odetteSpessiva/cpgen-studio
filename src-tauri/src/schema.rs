@@ -83,9 +83,9 @@ pub enum SchemaNode {
     If {
         condition: String,
         #[serde(rename = "ifChildren")]
-        if_children: Option<Vec<SchemaNode>>,
+        if_children: Vec<SchemaNode>,
         #[serde(rename = "elseChildren")]
-        else_children: Option<Vec<SchemaNode>>,
+        else_children: Vec<SchemaNode>,
     },
 }
 
@@ -293,13 +293,9 @@ impl Interpreter {
                     let mut parser = cmp_expr::Parser::new(tokens);
                     let condition_result = parser.parse()?.eval(&self.numeric_env())?;
                     if condition_result {
-                        if let Some(if_children) = if_children {
-                            self.eval_nodes(if_children, out)?;
-                        }
+                        self.eval_nodes(if_children, out)?;
                     } else {
-                        if let Some(else_children) = else_children {
-                            self.eval_nodes(else_children, out)?;
-                        }
+                        self.eval_nodes(else_children, out)?;
                     }
                 }
             }
@@ -785,18 +781,18 @@ mod tests {
             },
             SchemaNode::If {
                 condition: "n > 2".to_string(),
-                if_children: Some(vec![SchemaNode::Int {
+                if_children: vec![SchemaNode::Int {
                     var_name: None,
                     min: "1".to_string(),
                     max: "1".to_string(),
                     output_format: None,
-                }]),
-                else_children: Some(vec![SchemaNode::Int {
+                }],
+                else_children: vec![SchemaNode::Int {
                     var_name: None,
                     min: "2".to_string(),
                     max: "2".to_string(),
                     output_format: None,
-                }]),
+                }],
             },
         ];
         let mut out = Vec::new();
@@ -811,18 +807,18 @@ mod tests {
         let mut interp = make_interp(1);
         let nodes = vec![SchemaNode::If {
             condition: "false".to_string(),
-            if_children: Some(vec![SchemaNode::Int {
+            if_children: vec![SchemaNode::Int {
                 var_name: None,
                 min: "5".to_string(),
                 max: "1".to_string(),
                 output_format: None,
-            }]),
-            else_children: Some(vec![SchemaNode::Int {
+            }],
+            else_children: vec![SchemaNode::Int {
                 var_name: None,
                 min: "7".to_string(),
                 max: "7".to_string(),
                 output_format: None,
-            }]),
+            }],
         }];
         let mut out = Vec::new();
 
@@ -836,8 +832,8 @@ mod tests {
         let mut interp = make_interp(1);
         let nodes = vec![SchemaNode::If {
             condition: "n >".to_string(),
-            if_children: None,
-            else_children: None,
+            if_children: Vec::new(),
+            else_children: Vec::new(),
         }];
         let mut out = Vec::new();
 
@@ -857,8 +853,7 @@ mod tests {
             node,
             SchemaNode::If {
                 condition,
-                if_children: Some(_),
-                else_children: None,
+                ..
             } if condition == "true"
         ));
     }

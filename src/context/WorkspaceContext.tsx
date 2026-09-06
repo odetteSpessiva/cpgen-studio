@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createContext, useContext } from "react";
-import { useWorkspaceFiles } from "../hooks/useWorkspaceFiles";
+import { useWorkspaceFiles } from "../hooks/useWorkspace";
 import type {
   GeneratorMode,
   SchemaNode,

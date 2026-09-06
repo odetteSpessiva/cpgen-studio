@@ -40,6 +40,9 @@ export default function VisualSchemaBuilder() {
     useWorkspaceContext();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<"if" | "else" | null>(
+    null,
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
@@ -100,6 +103,13 @@ export default function VisualSchemaBuilder() {
         },
       },
       loop: { id, kind: "loop", count: "T", children: [] },
+      if: {
+        id,
+        kind: "if",
+        condition: "",
+        ifChildren: [],
+        elseChildren: [],
+      },
     };
 
     const newNode = defaults[kind];
@@ -107,7 +117,12 @@ export default function VisualSchemaBuilder() {
       selectedKind !== null ? getNodeKindMeta(selectedKind).hasChildren : false;
     setNodes((prev) =>
       isContainer && selectedId
-        ? updateContainerChildren(prev, selectedId, (c) => [...c, newNode])
+        ? updateContainerChildren(
+            prev,
+            selectedId,
+            (c) => [...c, newNode],
+            selectedBranch ?? (selectedKind === "if" ? "if" : undefined),
+          )
         : [...prev, newNode],
     );
   };
@@ -174,9 +189,19 @@ export default function VisualSchemaBuilder() {
                 key={node.id}
                 node={node}
                 selectedId={selectedId}
+                selectedBranch={selectedBranch}
                 onSelect={(id, e) => {
                   e.stopPropagation();
-                  setSelectedId(id === selectedId ? null : id);
+                  const nextSelectedId = id === selectedId ? null : id;
+                  const clickedNode = findNodeRecursive(nodes, id);
+                  setSelectedId(nextSelectedId);
+                  setSelectedBranch(
+                    nextSelectedId && clickedNode?.kind === "if" ? "if" : null,
+                  );
+                }}
+                onSelectBranch={(id, branch) => {
+                  setSelectedId(id);
+                  setSelectedBranch(branch);
                 }}
                 onUpdate={(id, updated) =>
                   setNodes((prev) => updateNodeRecursive(prev, id, updated))

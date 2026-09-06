@@ -59,12 +59,8 @@ fn validate_node(node: &SchemaNode, path: &str, errors: &mut Vec<ValidationError
             else_children,
             ..
         } => {
-            if let Some(if_children) = if_children {
-                validate_nodes(if_children, &format!("{path}.ifChildren"), errors);
-            }
-            if let Some(else_children) = else_children {
-                validate_nodes(else_children, &format!("{path}.elseChildren"), errors);
-            }
+            validate_nodes(if_children, &format!("{path}.ifChildren"), errors);
+            validate_nodes(else_children, &format!("{path}.elseChildren"), errors);
         }
     }
 }
@@ -176,18 +172,18 @@ mod tests {
     fn reports_errors_in_if_and_else_branches_with_distinct_paths() {
         let nodes = vec![SchemaNode::If {
             condition: "true".to_string(),
-            if_children: Some(vec![SchemaNode::Float {
+            if_children: vec![SchemaNode::Float {
                 var_name: None,
                 min: "0".to_string(),
                 max: "1".to_string(),
                 output_format: Some("{value}".to_string()),
-            }]),
-            else_children: Some(vec![SchemaNode::String {
+            }],
+            else_children: vec![SchemaNode::String {
                 var_name: None,
                 length: "1".to_string(),
                 charset: Charset::Custom,
                 custom_charset: None,
-            }]),
+            }],
         }];
 
         let errors = validate(&nodes).unwrap_err();

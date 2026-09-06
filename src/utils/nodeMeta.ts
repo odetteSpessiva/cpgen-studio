@@ -1,4 +1,4 @@
-import type { FieldKind, LoopNode, SchemaNode } from "../types";
+import type { FieldKind, IfNode, LoopNode, SchemaNode } from "../types";
 
 export type NodeCategory = "primitive" | "collection" | "control";
 
@@ -55,6 +55,13 @@ const NODE_KIND_META: Record<FieldKind, NodeKindMeta> = {
     headerPlaceholder: "Count (e.g. T)",
     getHeaderValue: (node) => (node as LoopNode).count,
     setHeaderValue: (value) => ({ count: value }) as Partial<LoopNode>,
+  },
+  if: {
+    color: CATEGORY_COLORS.collection,
+    hasChildren: true,
+    headerPlaceholder: "Contition (e.g. N < 0)",
+    getHeaderValue: (node) => (node as IfNode).condition,
+    setHeaderValue: (value) => ({ condition: value }) as Partial<IfNode>,
   },
 };
 
