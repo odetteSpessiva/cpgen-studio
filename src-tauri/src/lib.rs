@@ -2,10 +2,12 @@ mod cmp_expr;
 mod expr;
 mod format;
 mod lsp;
+mod mingw_installer;
 mod runner;
 mod schema;
 mod validate;
 use lsp::{lsp_kill, lsp_send, lsp_start, GppTripleState, LspState};
+use mingw_installer::{cancel_mingw, check_compiler, download_mingw, DownloadState};
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::{
@@ -433,6 +435,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(WatcherState(Mutex::new(HashMap::new())))
+        .manage(DownloadState(std::sync::atomic::AtomicBool::new(false)))
         .manage(LspState(tokio::sync::Mutex::new(HashMap::new())))
         .manage(GppTripleState(tokio::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
@@ -450,7 +453,10 @@ pub fn run() {
             unwatch_file,
             lsp_start,
             lsp_send,
-            lsp_kill
+            lsp_kill,
+            download_mingw,
+            cancel_mingw,
+            check_compiler
         ])
         .setup(|app| {
             let version = app.package_info().version.to_string();

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
 import { useSettingsContext } from "../context/SettingsContext";
 import type { SettingKey } from "../types";
+import MingwDownloadModal from "./MingwDownloadModal";
 import Section from "./Section";
 
 const ROW_CLASS = "flex items-center gap-3 mb-3 items-start";
@@ -170,6 +172,31 @@ export default function Settings() {
     parseString,
   );
 
+  const [compilerIsValid, setCompilerIsValid] = useState(true);
+  const [showMingwDownload, setShowMingwDownload] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void invoke<boolean>("check_compiler", { compilerPath }).then((valid) => {
+      if (active) setCompilerIsValid(valid);
+    });
+    return () => {
+      active = false;
+    };
+  }, [compilerPath]);
+
+  const downloadMingw = useCallback(async () => {
+    const downloadedCompilerPath = await invoke<string>("download_mingw");
+    await onSettingChange("compilerPath", downloadedCompilerPath);
+    setCompilerIsValid(true);
+    setShowMingwDownload(false);
+  }, [onSettingChange]);
+
+  const cancelMingwDownload = useCallback(async () => {
+    await invoke("cancel_mingw");
+    setShowMingwDownload(false);
+  }, []);
+
   return (
     <div className="h-full flex items-center justify-center p-6 bg-(--bg-primary)">
       <div className="w-full h-full rounded-lg border border-(--border) bg-(--bg-tertiary) p-6">
@@ -227,6 +254,18 @@ export default function Settings() {
               placeholder: "g++",
             }}
           />
+          {!compilerIsValid && (
+            <div className="ml-24.25 -mt-1 mb-3 flex items-center justify-between gap-3 text-[12px] text-(--warning)">
+              <span>Compiler path is not a working g++.</span>
+              <button
+                type="button"
+                onClick={() => setShowMingwDownload(true)}
+                className="shrink-0 rounded border border-(--warning)/50 px-2 py-1 text-(--warning) hover:bg-(--warning)/10"
+              >
+                Download MinGW
+              </button>
+            </div>
+          )}
           <SettingField
             label="Compiler args"
             field={compilerArgsField}
@@ -272,6 +311,12 @@ export default function Settings() {
           />
         </Section>
       </div>
+      {showMingwDownload && (
+        <MingwDownloadModal
+          onCancel={() => void cancelMingwDownload()}
+          onDownload={downloadMingw}
+        />
+      )}
     </div>
   );
 }

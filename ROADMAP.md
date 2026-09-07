@@ -45,7 +45,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 ## Other
 
 - [x] Support LSP for code autocompletion
-- [ ] In app method to download and mingw toolchain
+- [x] In app method to download mingw
 - [ ] Output format for strings
 
 ---
