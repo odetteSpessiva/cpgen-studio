@@ -1,6 +1,7 @@
 use futures_util::StreamExt;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::time::Instant;
 use std::{
     fs::File,
     path::Path,
@@ -20,6 +21,7 @@ const MINGW_SHA256: &str = "c1f52294597c0b73786b2a78eb5d176d89226d2f21875eab75e7
 struct DownloadProgress {
     downloaded: u64,
     total: u64,
+    elapsed_ms: u64,
 }
 
 pub struct DownloadState(pub AtomicBool);
@@ -45,6 +47,9 @@ pub async fn download_to(
         .await
         .map_err(|e| format!("Failed to create file: {e}"))?;
     let mut stream = response.bytes_stream();
+    let start = Instant::now();
+    let mut last_emit = Instant::now();
+    let emit_interval = std::time::Duration::from_millis(200);
     while let Some(chunk) = stream.next().await {
         if state.0.load(Ordering::Relaxed) {
             return Err("Download canceled".to_string());
@@ -54,11 +59,27 @@ pub async fn download_to(
             .await
             .map_err(|e| format!("Write error: {e}"))?;
         downloaded += chunk.len() as u64;
-        let _ = app.emit(
-            "mingw-install-progress",
-            DownloadProgress { downloaded, total },
-        );
+        let now = Instant::now();
+        if now.duration_since(last_emit) >= emit_interval {
+            let _ = app.emit(
+                "mingw-install-progress",
+                DownloadProgress {
+                    downloaded,
+                    total,
+                    elapsed_ms: start.elapsed().as_millis() as u64,
+                },
+            );
+            last_emit = Instant::now();
+        }
     }
+    let _ = app.emit(
+        "mingw-install-progress",
+        DownloadProgress {
+            downloaded,
+            total,
+            elapsed_ms: start.elapsed().as_millis() as u64,
+        },
+    );
     file.flush()
         .await
         .map_err(|e| format!("Flush error: {e}"))?;
@@ -153,11 +174,10 @@ pub async fn download_mingw(
         .map_err(|e| format!("Failed to move verified archive: {e}"))?;
     let install_dir = app_dir.join("mingw");
     let archive_path = final_path.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        extract_mingw_archive(&archive_path, &install_dir)
-    })
-        .await
-        .map_err(|e| format!("Failed to extract compiler archive: {e}"))?;
+    let result =
+        tokio::task::spawn_blocking(move || extract_mingw_archive(&archive_path, &install_dir))
+            .await
+            .map_err(|e| format!("Failed to extract compiler archive: {e}"))?;
     state.0.store(false, Ordering::Relaxed);
     let compiler_path = result?;
     tokio::fs::remove_file(&final_path)
@@ -182,22 +202,22 @@ pub async fn check_compiler(compiler_path: String) -> bool {
 
     #[cfg(target_os = "windows")]
     {
-    let compiler = if compiler_path.trim().is_empty() {
-        "g++"
-    } else {
-        compiler_path.trim()
-    };
+        let compiler = if compiler_path.trim().is_empty() {
+            "g++"
+        } else {
+            compiler_path.trim()
+        };
 
-    let output = match Command::new(compiler).arg("--version").output().await {
-        Ok(output) if output.status.success() => output,
-        _ => return false,
-    };
-    let version = format!(
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    )
-    .to_ascii_lowercase();
-    version.contains("g++") || version.contains("gcc")
+        let output = match Command::new(compiler).arg("--version").output().await {
+            Ok(output) if output.status.success() => output,
+            _ => return false,
+        };
+        let version = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .to_ascii_lowercase();
+        version.contains("g++") || version.contains("gcc")
     }
 }

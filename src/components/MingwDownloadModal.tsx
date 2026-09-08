@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 interface DownloadProgress {
   downloaded: number;
   total: number;
+  elapsed_ms: number;
+}
+
+interface DownloadMeta {
+  bytesPerSec: number;
+  etaSec: number | null;
 }
 
 interface MingwDownloadModalProps {
@@ -16,6 +22,14 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function formatEta(seconds: number | null) {
+  if (seconds === null || !Number.isFinite(seconds)) return "--";
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  return `${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
+}
+
+let prev: { downloaded: number; elapsed_ms: number } | null = null;
+
 export default function MingwDownloadModal({
   onCancel,
   onDownload,
@@ -27,6 +41,11 @@ export default function MingwDownloadModal({
   const [progress, setProgress] = useState<DownloadProgress>({
     downloaded: 0,
     total: 0,
+    elapsed_ms: 0,
+  });
+  const [downloadMeta, setDownloadMeta] = useState<DownloadMeta>({
+    bytesPerSec: 0,
+    etaSec: null,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -35,19 +54,26 @@ export default function MingwDownloadModal({
     const unlisten = listen<DownloadProgress>(
       "mingw-install-progress",
       (event) => {
-        if (active) {
-          if (
-            event.payload.total > 0 &&
-            event.payload.downloaded >= event.payload.total
-          ) {
-            setPhase("extracting");
-          }
-          setProgress((current) =>
-            event.payload.downloaded >= current.downloaded
-              ? event.payload
-              : current,
-          );
+        if (!active) return;
+        const { downloaded, total, elapsed_ms } = event.payload;
+        if (prev && elapsed_ms > prev.elapsed_ms) {
+          const bytesDelta = downloaded - prev.downloaded;
+          const timeDeltaSec = (elapsed_ms - prev.elapsed_ms) / 1000;
+          const bytesPerSec = bytesDelta / timeDeltaSec;
+          const etaSec =
+            total > 0 && bytesPerSec > 0
+              ? (total - downloaded) / bytesPerSec
+              : null;
+          setDownloadMeta({ etaSec: etaSec, bytesPerSec: bytesPerSec });
         }
+        if (!prev || elapsed_ms > prev.elapsed_ms)
+          prev = { downloaded, elapsed_ms };
+        if (total > 0 && downloaded >= total) {
+          setPhase("extracting");
+        }
+        setProgress((current) =>
+          elapsed_ms >= current.elapsed_ms ? event.payload : current,
+        );
       },
     );
 
@@ -115,6 +141,16 @@ export default function MingwDownloadModal({
                 : "Starting..."}
           </span>
         </div>
+        {phase === "downloading" && (
+          <div className="mt-1 flex justify-between text-[12px] text-(--text-muted)">
+            <span>
+              {downloadMeta.bytesPerSec > 0
+                ? `${formatBytes(downloadMeta.bytesPerSec)}/s`
+                : "Starting..."}
+            </span>
+            <span>{formatEta(downloadMeta.etaSec)}</span>
+          </div>
+        )}
 
         {error && <p className="mt-3 text-[13px] text-red-400">{error}</p>}
 
