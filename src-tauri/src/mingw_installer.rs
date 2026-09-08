@@ -9,6 +9,7 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
+#[cfg(target_os = "windows")]
 use tokio::process::Command;
 use zip::ZipArchive;
 

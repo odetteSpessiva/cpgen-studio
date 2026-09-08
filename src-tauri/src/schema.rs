@@ -845,7 +845,7 @@ mod tests {
     #[test]
     fn if_node_deserializes_branch_field_names() {
         let node: SchemaNode = serde_json::from_str(
-            r#"{"kind":"if","condition":"true","ifChildren":[],"elseChildren":null}"#,
+            r#"{"kind":"if","condition":"true","ifChildren":[],"elseChildren":[]}"#,
         )
         .unwrap();
 
