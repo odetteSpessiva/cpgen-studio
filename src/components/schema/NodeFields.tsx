@@ -214,7 +214,9 @@ export default function NodeFields({ node, onUpdate }: NodeFieldsProps) {
               !node.varName ? "needs a var name first" : undefined
             }
             onToggle={(checked) =>
-              update({ outputFormat: checked ? "" : undefined })
+              update({
+                outputFormat: checked ? `{${node.varName}}\\n` : undefined,
+              })
             }
           >
             <input
