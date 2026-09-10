@@ -7,26 +7,26 @@ import type { SettingKey } from "../types";
 interface SettingsState {
   fontSize: number;
   fontFamily: string;
-  compilerPath: string;
+  gppPath: string;
   compilerArgs: string;
+  pythonPath: string;
   clangdPath: string;
-  pylspPath: string;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
   fontSize: 13,
   fontFamily:
     '"SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
-  compilerPath: "g++",
+  gppPath: "g++",
   compilerArgs: "-std=c++14 -O2",
+  pythonPath: "python",
   clangdPath: "clangd",
-  pylspPath: "pylsp",
 };
 
 const LSP_SETTING_TO_LANGUAGE: Partial<Record<SettingKey, string>> = {
   clangdPath: "cpp",
-  compilerPath: "cpp",
-  pylspPath: "python",
+  gppPath: "cpp",
+  pythonPath: "python",
 };
 
 function assignSetting<K extends keyof SettingsState>(

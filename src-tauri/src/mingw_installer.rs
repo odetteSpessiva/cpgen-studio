@@ -101,7 +101,7 @@ fn extract_mingw_archive(archive_path: &Path, install_dir: &Path) -> Result<Stri
         File::open(archive_path).map_err(|e| format!("Failed to open verified archive: {e}"))?;
     let mut archive =
         ZipArchive::new(archive).map_err(|e| format!("Failed to read verified archive: {e}"))?;
-    let mut compiler_path = None;
+    let mut gpp_path = None;
 
     for index in 0..archive.len() {
         let mut entry = archive
@@ -133,14 +133,14 @@ fn extract_mingw_archive(archive_path: &Path, install_dir: &Path) -> Result<Stri
                     .parent()
                     .is_some_and(|parent| parent.ends_with("bin"))
             {
-                compiler_path = Some(output_path);
+                gpp_path = Some(output_path);
             }
         }
     }
 
-    let compiler_path = compiler_path
+    let gpp_path = gpp_path
         .ok_or_else(|| "The downloaded archive does not contain a g++ executable".to_string())?;
-    Ok(compiler_path.to_string_lossy().into_owned())
+    Ok(gpp_path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -180,11 +180,11 @@ pub async fn download_mingw(
             .await
             .map_err(|e| format!("Failed to extract compiler archive: {e}"))?;
     state.0.store(false, Ordering::Relaxed);
-    let compiler_path = result?;
+    let gpp_path = result?;
     tokio::fs::remove_file(&final_path)
         .await
         .map_err(|e| format!("Failed to remove extracted archive: {e}"))?;
-    Ok(compiler_path)
+    Ok(gpp_path)
 }
 
 #[tauri::command]
@@ -193,20 +193,20 @@ pub fn cancel_mingw(state: tauri::State<'_, DownloadState>) {
 }
 
 #[tauri::command]
-pub async fn check_compiler(compiler_path: String) -> bool {
+pub async fn check_compiler(gpp_path: String) -> bool {
     #[cfg(not(target_os = "windows"))]
     {
         // MinGW installation is currently Windows-only; treat the system compiler as valid elsewhere.
-        let _ = compiler_path;
+        let _ = gpp_path;
         return true;
     }
 
     #[cfg(target_os = "windows")]
     {
-        let compiler = if compiler_path.trim().is_empty() {
+        let compiler = if gpp_path.trim().is_empty() {
             "g++"
         } else {
-            compiler_path.trim()
+            gpp_path.trim()
         };
 
         let output = match Command::new(compiler).arg("--version").output().await {

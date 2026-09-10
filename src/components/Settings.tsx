@@ -120,10 +120,10 @@ export default function Settings() {
   const {
     fontSize,
     fontFamily,
-    compilerPath,
+    gppPath,
     compilerArgs,
+    pythonPath,
     clangdPath,
-    pylspPath,
     onSettingChange,
     error,
     setError,
@@ -144,9 +144,9 @@ export default function Settings() {
     parseString,
   );
 
-  const compilerPathField = useCommittedSetting(
-    "compilerPath",
-    compilerPath,
+  const gppPathField = useCommittedSetting(
+    "gppPath",
+    gppPath,
     onSettingChange,
     parseString,
   );
@@ -158,16 +158,16 @@ export default function Settings() {
     parseString,
   );
 
-  const clangdPathField = useCommittedSetting(
-    "clangdPath",
-    clangdPath,
+  const pythonPathField = useCommittedSetting(
+    "pythonPath",
+    pythonPath,
     onSettingChange,
     parseString,
   );
 
-  const pylspPathField = useCommittedSetting(
-    "pylspPath",
-    pylspPath,
+  const clangdPathField = useCommittedSetting(
+    "clangdPath",
+    clangdPath,
     onSettingChange,
     parseString,
   );
@@ -177,17 +177,17 @@ export default function Settings() {
 
   useEffect(() => {
     let active = true;
-    void invoke<boolean>("check_compiler", { compilerPath }).then((valid) => {
+    void invoke<boolean>("check_compiler", { gppPath }).then((valid) => {
       if (active) setCompilerIsValid(valid);
     });
     return () => {
       active = false;
     };
-  }, [compilerPath]);
+  }, [gppPath]);
 
   const downloadMingw = useCallback(async () => {
     const downloadedCompilerPath = await invoke<string>("download_mingw");
-    await onSettingChange("compilerPath", downloadedCompilerPath);
+    await onSettingChange("gppPath", downloadedCompilerPath);
     setCompilerIsValid(true);
     setShowMingwDownload(false);
   }, [onSettingChange]);
@@ -246,8 +246,8 @@ export default function Settings() {
 
         <Section title="Compiler">
           <SettingField
-            label="Compiler path"
-            field={compilerPathField}
+            label="G++ path"
+            field={gppPathField}
             inputProps={{
               type: "text",
               autoComplete: "off",
@@ -288,6 +288,15 @@ export default function Settings() {
               ))}
             </div>
           </SettingField>
+          <SettingField
+            label="Python path"
+            field={pythonPathField}
+            inputProps={{
+              type: "text",
+              autoComplete: "off",
+              placeholder: "python",
+            }}
+          />
         </Section>
 
         <Section title="Language Servers">
@@ -298,15 +307,6 @@ export default function Settings() {
               type: "text",
               autoComplete: "off",
               placeholder: "clangd",
-            }}
-          />
-          <SettingField
-            label="pylsp path"
-            field={pylspPathField}
-            inputProps={{
-              type: "text",
-              autoComplete: "off",
-              placeholder: "pylsp",
             }}
           />
         </Section>

@@ -77,7 +77,7 @@ pub async fn lsp_start(
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
     let (default_bin, setting_key) = match language.as_str() {
         "cpp" => ("clangd", "clangdPath"),
-        "python" => ("pylsp", "pylspPath"),
+        "python" => ("python", "pythonPath"),
         other => return Err(format!("Lsp server is not yet supported for '{other}'!")),
     };
 
@@ -90,7 +90,7 @@ pub async fn lsp_start(
         let mut cached = gpp_triple_state.0.lock().await;
         if cached.is_none() {
             let gpp_config = store
-                .get("compilerPath")
+                .get("gppPath")
                 .and_then(|f| f.as_str().map(String::from))
                 .unwrap_or_default();
             let gpp_path = if gpp_config.trim().is_empty() {
@@ -111,7 +111,14 @@ pub async fn lsp_start(
         config_bin
     };
 
+    let args = if language == "python" {
+        vec!["-m", "pylsp"]
+    } else {
+        vec![]
+    };
+
     let mut child = Command::new(&program)
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

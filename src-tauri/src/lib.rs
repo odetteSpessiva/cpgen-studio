@@ -231,18 +231,24 @@ async fn generate_tests(
     );
 
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
-    let compiler_path = store
-        .get("compilerPath")
+    let gpp_path = store
+        .get("gppPath")
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default();
     let compiler_args = store
         .get("compilerArgs")
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default();
+    let python_path = store
+        .get("pythonPath")
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_default();
 
-    let gen_command = prep_executable(&gen_path, &compiler_path, &compiler_args).await?;
+    let gen_command = prep_executable(&gen_path, &gpp_path, &compiler_args, &python_path).await?;
     let sol_command = match config.sol_path {
-        Some(sol_path) => Some(prep_executable(&sol_path, &compiler_path, &compiler_args).await?),
+        Some(sol_path) => {
+            Some(prep_executable(&sol_path, &gpp_path, &compiler_args, &python_path).await?)
+        }
         None => None,
     };
 
@@ -322,17 +328,23 @@ async fn generate_tests_from_schema(
     );
 
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
-    let compiler_path = store
-        .get("compilerPath")
+    let gpp_path = store
+        .get("gppPath")
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default();
     let compiler_args = store
         .get("compilerArgs")
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default();
+    let python_path = store
+        .get("pythonPath")
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_default();
 
     let sol_command = match config.sol_path {
-        Some(sol_path) => Some(prep_executable(&sol_path, &compiler_path, &compiler_args).await?),
+        Some(sol_path) => {
+            Some(prep_executable(&sol_path, &gpp_path, &compiler_args, &python_path).await?)
+        }
         None => None,
     };
 

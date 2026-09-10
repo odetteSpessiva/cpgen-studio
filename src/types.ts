@@ -16,10 +16,10 @@ export interface WorkspaceFilePayload {
 export type SettingKey =
   | "fontSize"
   | "fontFamily"
-  | "compilerPath"
+  | "gppPath"
   | "compilerArgs"
-  | "clangdPath"
-  | "pylspPath";
+  | "pythonPath"
+  | "clangdPath";
 
 export type WorkspaceSlot = "generator" | "solution";
 

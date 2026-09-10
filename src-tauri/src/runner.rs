@@ -26,15 +26,21 @@ fn new_command(program: &str) -> Command {
 
 pub async fn prep_executable(
     source: &Path,
-    compiler_path: &str,
+    gpp_path: &str,
     compiler_args: &str,
+    python_path: &str,
 ) -> Result<(String, Vec<String>), String> {
     match source.extension().and_then(|s| s.to_str()) {
         Some("py") => {
-            let python = if cfg!(target_os = "windows") {
+            let default_python = if cfg!(target_os = "windows") {
                 "python"
             } else {
                 "python3"
+            };
+            let python = if python_path.trim().is_empty() {
+                default_python
+            } else {
+                python_path
             };
             Ok((python.to_string(), vec![clean_path(source)?]))
         }
@@ -54,10 +60,10 @@ pub async fn prep_executable(
 
             let exe = build_dir.join(file_stem).with_extension("exe");
 
-            let compiler = if compiler_path.trim().is_empty() {
+            let compiler = if gpp_path.trim().is_empty() {
                 "g++"
             } else {
-                compiler_path
+                gpp_path
             };
 
             let flags = shell_words::split(compiler_args).map_err(|e| e.to_string())?;
