@@ -21,6 +21,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] **Conditional block**: an `IF` block supporting basic branching logic within a schema tree
 - [ ] **Additional block types**: expand the block library over time
 - [x] **Savable schema**: export/import the schema as JSON
+- [ ] **Cross-container drag and drop**: move blocks between nested containers and the root reliably
 
 ## Fixes
 
