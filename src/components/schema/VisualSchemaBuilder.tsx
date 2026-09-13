@@ -1,39 +1,32 @@
-import {
-  DndContext,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  pointerWithin,
-  useSensor,
-  useSensors,
-  type CollisionDetection,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { useCallback, useState } from "react";
+import { SortableTree } from "dnd-kit-sortable-tree";
+import type { ItemChangedReason } from "dnd-kit-sortable-tree/dist/types";
+import { useState } from "react";
 
 import type { FieldKind, SchemaNode } from "../../types";
 import {
   findNodeRecursive,
-  findParentList,
-  moveNodeInTree,
-  removeNodeRecursive,
   updateContainerChildren,
   updateNodeRecursive,
 } from "../../utils/schemaTree";
+import {
+  collectCollapsedIds,
+  fromTreeItems,
+  toTreeItems,
+  type SchemaTreeItemData,
+} from "../../utils/treeAdapter";
 
-import NodeCardPreview from "./NodeCardPreview";
-
-import NodeCard from "./NodeCard";
 import SchemaToolbar from "./SchemaToolbar";
+import {
+  default as SchemaTreeItemComponent,
+  SchemaTreeItemProvider,
+} from "./SchemaTreeItem";
 
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
 
 import { getNodeKindMeta } from "../../utils/nodeMeta";
+
+const INDENT_WIDTH = 24;
 
 export default function VisualSchemaBuilder() {
   const { nodes, setNodes, handleSaveSchema, handleLoadSchema } =
@@ -43,31 +36,31 @@ export default function VisualSchemaBuilder() {
   const [selectedBranch, setSelectedBranch] = useState<"if" | "else" | null>(
     null,
   );
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
-  );
+  const handleItemsChanged = (
+    _items: unknown,
+    reason: ItemChangedReason<SchemaTreeItemData>,
+  ) => {
+    const items = _items as ReturnType<typeof toTreeItems>;
+    setNodes(fromTreeItems(items));
 
-  const [activeParentIds, setActiveParentIds] = useState<Set<string> | null>(
-    null,
-  );
+    if (reason.type === "collapsed" || reason.type === "expanded") {
+      const itemId = String(reason.item.id);
+      setCollapsedIds((previous) => {
+        const next = new Set(previous);
+        if (reason.type === "collapsed") next.add(itemId);
+        else next.delete(itemId);
+        return next;
+      });
+    } else {
+      setCollapsedIds(collectCollapsedIds(items));
+    }
 
-  const [activeId, setActiveId] = useState<string | null>(null);
-
-  const handleDragStart = ({ active }: DragStartEvent) => {
-    setActiveId(String(active.id));
-    const parent = findParentList(nodes, String(active.id));
-    setActiveParentIds(parent ? new Set(parent.map((n) => n.id)) : null);
+    if (reason.type === "removed" && reason.item.itemKind === "field") {
+      if (selectedId === reason.item.node.id) setSelectedId(null);
+    }
   };
-
-  const sameContainerCollision: CollisionDetection = useCallback(
-    (args) => {
-      const collisions = pointerWithin(args);
-      if (!collisions.length || !activeParentIds) return collisions;
-      return collisions.filter((c) => activeParentIds.has(String(c.id)));
-    },
-    [activeParentIds],
-  );
 
   const selectedNode = findNodeRecursive(nodes, selectedId || "");
   const selectedKind = selectedNode?.kind || null;
@@ -127,17 +120,6 @@ export default function VisualSchemaBuilder() {
     );
   };
 
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    setActiveId(null);
-    if (over && active.id !== over.id) {
-      setNodes((prev) =>
-        moveNodeInTree(prev, active.id as string, over.id as string),
-      );
-    }
-  };
-
-  const activeNode = activeId ? findNodeRecursive(nodes, activeId) : null;
-
   const handleSchemaLoadClick = async () => {
     const shouldLoad = await confirm(
       "Loading a schema will replace all current work in the visual builder. Continue?",
@@ -148,6 +130,30 @@ export default function VisualSchemaBuilder() {
     );
     if (!shouldLoad) return;
     void handleLoadSchema();
+  };
+
+  const treeItems = toTreeItems(nodes, collapsedIds);
+  const treeItemContext = {
+    selectedId,
+    collapsedIds,
+    onToggleCollapsed: (id: string) =>
+      setCollapsedIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    onSelect: (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const nextSelectedId = id === selectedId ? null : id;
+      const clickedNode = findNodeRecursive(nodes, id);
+      setSelectedId(nextSelectedId);
+      setSelectedBranch(
+        nextSelectedId && clickedNode?.kind === "if" ? "if" : null,
+      );
+    },
+    onUpdate: (id: string, updated: Partial<SchemaNode>) =>
+      setNodes((previous) => updateNodeRecursive(previous, id, updated)),
   };
 
   return (
@@ -172,52 +178,21 @@ export default function VisualSchemaBuilder() {
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={sameContainerCollision}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveId(null)}
-      >
-        <SortableContext
-          items={nodes.map((n) => n.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2 min-h-10">
-            {nodes.map((node) => (
-              <NodeCard
-                key={node.id}
-                node={node}
-                selectedId={selectedId}
-                selectedBranch={selectedBranch}
-                onSelect={(id, e) => {
-                  e.stopPropagation();
-                  const nextSelectedId = id === selectedId ? null : id;
-                  const clickedNode = findNodeRecursive(nodes, id);
-                  setSelectedId(nextSelectedId);
-                  setSelectedBranch(
-                    nextSelectedId && clickedNode?.kind === "if" ? "if" : null,
-                  );
-                }}
-                onSelectBranch={(id, branch) => {
-                  setSelectedId(id);
-                  setSelectedBranch(branch);
-                }}
-                onUpdate={(id, updated) =>
-                  setNodes((prev) => updateNodeRecursive(prev, id, updated))
-                }
-                onRemove={(id) => {
-                  if (selectedId === id) setSelectedId(null);
-                  setNodes((prev) => removeNodeRecursive(prev, id));
-                }}
-              />
-            ))}
-          </div>
-        </SortableContext>
-        <DragOverlay>
-          {activeNode ? <NodeCardPreview node={activeNode} /> : null}
-        </DragOverlay>
-      </DndContext>
+      <div className="min-h-10">
+        <SchemaTreeItemProvider value={treeItemContext}>
+          <SortableTree
+            items={treeItems}
+            onItemsChanged={handleItemsChanged}
+            indentationWidth={INDENT_WIDTH}
+            dropAnimation={null}
+            sortableProps={{ animateLayoutChanges: () => false }}
+            dndContextProps={{
+              accessibility: { restoreFocus: false },
+            }}
+            TreeItemComponent={SchemaTreeItemComponent}
+          />
+        </SchemaTreeItemProvider>
+      </div>
 
       <SchemaToolbar
         selectedKind={selectedKind}

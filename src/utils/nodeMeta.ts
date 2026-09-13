@@ -50,14 +50,14 @@ const NODE_KIND_META: Record<FieldKind, NodeKindMeta> = {
   string: { color: CATEGORY_COLORS.primitive, ...varNameHeader },
   array: { color: CATEGORY_COLORS.collection, ...varNameHeader },
   loop: {
-    color: CATEGORY_COLORS.collection,
+    color: CATEGORY_COLORS.control,
     hasChildren: true,
     headerPlaceholder: "Count (e.g. T)",
     getHeaderValue: (node) => (node as LoopNode).count,
     setHeaderValue: (value) => ({ count: value }) as Partial<LoopNode>,
   },
   if: {
-    color: CATEGORY_COLORS.collection,
+    color: CATEGORY_COLORS.control,
     hasChildren: true,
     headerPlaceholder: "Contition (e.g. N < 0)",
     getHeaderValue: (node) => (node as IfNode).condition,

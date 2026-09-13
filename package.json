@@ -25,6 +25,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.4",
+    "dnd-kit-sortable-tree": "^0.1.73",
     "lucide-react": "^1.28.0",
     "monaco-editor": "^0.56.0",
     "react": "^19.1.0",

@@ -107,4 +107,43 @@ body {
   .terminal-resizer[data-resize-handle-active] {
     background: var(--accent-dim);
   }
+
+  .dnd-sortable-tree_folder_tree-item {
+    color: var(--text-primary);
+    padding: 4px 0;
+  }
+
+  .dnd-sortable-tree_folder_wrapper {
+    margin-bottom: -1px;
+  }
+
+  .dnd-sortable-tree_folder_line,
+  .dnd-sortable-tree_folder_line-last,
+  .dnd-sortable-tree_folder_line-to_self,
+  .dnd-sortable-tree_folder_line-to_self-last,
+  .dnd-sortable-tree_folder_tree-item-collapse_button {
+    flex: 0 0 24px;
+    width: 24px;
+  }
+
+  .dnd-sortable-tree_folder_line,
+  .dnd-sortable-tree_folder_line-to_self,
+  .dnd-sortable-tree_folder_line-to_self-last {
+    filter: invert(1) brightness(0.55);
+  }
+
+  .dnd-sortable-tree_folder_handle,
+  .dnd-sortable-tree_folder_tree-item-collapse_button {
+    filter: invert(1) brightness(1.6);
+    opacity: 0.5;
+  }
+
+  .dnd-sortable-tree_folder_handle:hover,
+  .dnd-sortable-tree_folder_tree-item-collapse_button:hover {
+    opacity: 0.9;
+  }
+
+  .dnd-sortable-tree_folder_ghost {
+    opacity: 0.3;
+  }
 }
