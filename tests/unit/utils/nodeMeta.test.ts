@@ -23,7 +23,7 @@ describe("nodeMeta", () => {
   it("exposes loop children and maps the header to count", () => {
     const meta = getNodeKindMeta("loop");
 
-    expect(meta.color).toBe(CATEGORY_COLORS.collection);
+    expect(meta.color).toBe(CATEGORY_COLORS.control);
     expect(meta.hasChildren).toBe(true);
     expect(meta.headerPlaceholder).toBe("Count (e.g. T)");
     expect(

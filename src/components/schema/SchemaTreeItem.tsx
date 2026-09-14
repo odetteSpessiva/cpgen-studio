@@ -1,11 +1,6 @@
 import type { TreeItemComponentProps } from "dnd-kit-sortable-tree";
 import { FolderTreeItemWrapper } from "dnd-kit-sortable-tree";
-import {
-  createContext,
-  forwardRef,
-  useContext,
-  type ReactNode,
-} from "react";
+import { createContext, forwardRef, useContext, type ReactNode } from "react";
 import type { SchemaNode } from "../../types";
 import { getNodeKindMeta } from "../../utils/nodeMeta";
 import type { SchemaTreeItemData } from "../../utils/treeAdapter";

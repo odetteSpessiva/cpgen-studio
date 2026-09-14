@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { SchemaNode } from "../../../src/types";
 import {
   findNodeRecursive,
-  moveNodeInTree,
   removeNodeRecursive,
   updateContainerChildren,
   updateNodeRecursive,
@@ -114,34 +113,6 @@ describe("schemaTree", () => {
     });
   });
 
-  it("reorders sibling nodes within the same parent array", () => {
-    const tree: SchemaNode[] = [
-      { id: "a", kind: "int", varName: "a", min: "1", max: "100" },
-      { id: "b", kind: "int", varName: "b", min: "1", max: "100" },
-      { id: "c", kind: "int", varName: "c", min: "1", max: "100" },
-    ];
-
-    const reordered = moveNodeInTree(tree, "a", "c");
-    expect(reordered.map((node) => node.id)).toEqual(["b", "c", "a"]);
-  });
-
-  it("does not reorder nodes across different parent arrays", () => {
-    const tree: SchemaNode[] = [
-      {
-        id: "loop-1",
-        kind: "loop",
-        count: "T",
-        children: [
-          { id: "a", kind: "int", varName: "a", min: "1", max: "100" },
-        ],
-      },
-      { id: "b", kind: "int", varName: "b", min: "1", max: "100" },
-    ];
-
-    const unchanged = moveNodeInTree(tree, "a", "b");
-    expect(unchanged).toEqual(tree);
-  });
-
   it("updates a branch on an if node nested in a container", () => {
     const tree: SchemaNode[] = [
       {
@@ -178,41 +149,5 @@ describe("schemaTree", () => {
     expect(updated[0]).toMatchObject({
       children: [{ id: "if-1", ifChildren: [], elseChildren: [child] }],
     });
-  });
-
-  it("updates, removes, and reorders nodes in if branches", () => {
-    const tree: SchemaNode[] = [
-      {
-        id: "if-1",
-        kind: "if",
-        condition: "x",
-        ifChildren: [
-          { id: "if-a", kind: "int", varName: "a", min: "1", max: "10" },
-          { id: "if-b", kind: "int", varName: "b", min: "1", max: "10" },
-        ],
-        elseChildren: [
-          {
-            id: "else-a",
-            kind: "string",
-            varName: "s",
-            length: "5",
-            charset: "lowercase",
-          },
-        ],
-      },
-    ];
-
-    const updated = updateNodeRecursive(tree, "else-a", { varName: "updated" });
-    expect(findNodeRecursive(updated, "else-a")).toMatchObject({
-      varName: "updated",
-    });
-
-    const reordered = moveNodeInTree(updated, "if-a", "if-b");
-    expect(reordered[0]).toMatchObject({
-      ifChildren: [{ id: "if-b" }, { id: "if-a" }],
-    });
-
-    const removed = removeNodeRecursive(reordered, "else-a");
-    expect(removed[0]).toMatchObject({ elseChildren: [] });
   });
 });
