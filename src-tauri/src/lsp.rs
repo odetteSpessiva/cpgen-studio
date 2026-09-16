@@ -114,7 +114,7 @@ pub async fn lsp_start(
     let args = if language == "python" {
         vec!["-m", "pylsp"]
     } else {
-        vec![]
+        vec!["--fallback-style=Google"]
     };
 
     let mut child = Command::new(&program)

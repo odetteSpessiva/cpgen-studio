@@ -41,7 +41,7 @@ function toFileUri(filePath: string): string {
 
 function cleanCode(model: TrackedModel, selections: Selection[] | null) {
   const original = model.getValue();
-  if (!original) return;
+  if (!original) return false;
   const edits: editor.IIdentifiedSingleEditOperation[] = [];
   const toRange = (start: number, end: number) => ({
     startLineNumber: model.getPositionAt(start).lineNumber,
@@ -52,7 +52,7 @@ function cleanCode(model: TrackedModel, selections: Selection[] | null) {
   const trailingMatch = original.match(/\s+$/);
   const trailingMatchStart = trailingMatch?.index ?? original.length;
 
-  for (const m of original.matchAll(/[ \t]+(?=\r?\n|$)/g)) {
+  for (const m of original.matchAll(/[^\S\r\n]+(?=\r?\n|$)/g)) {
     const start = m.index ?? -1;
     if (start >= 0 && start < trailingMatchStart) {
       edits.push({ range: toRange(start, start + m[0].length), text: "" });
@@ -66,9 +66,10 @@ function cleanCode(model: TrackedModel, selections: Selection[] | null) {
     });
   }
 
-  if (edits.length === 0) return;
+  if (edits.length === 0) return false;
   const before = selections ?? [];
   model.pushEditOperations(before, edits, () => before);
+  return true;
 }
 
 export function useMonacoEditor({
@@ -124,7 +125,7 @@ export function useMonacoEditor({
     const language = model.getLanguageId();
     getOrStartLSP(language, "").then((connection) => {
       connection.sendNotification("textDocument/didChange", {
-        textDocument: { uri: model._lspUri, version: Date.now() },
+        textDocument: { uri: model._lspUri, version: model.getVersionId() },
         contentChanges: [{ text: value }],
       });
     });
@@ -136,7 +137,9 @@ export function useMonacoEditor({
     if (!currentModel || currentModel.isDisposed() || !savePath) return false;
     isProgrammaticUpdateRef.current = true;
     try {
-      cleanCode(currentModel, editorRef.current?.getSelections() ?? null);
+      hasPendingEditRef.current =
+        cleanCode(currentModel, editorRef.current?.getSelections() ?? null) ||
+        hasPendingEditRef.current;
     } finally {
       isProgrammaticUpdateRef.current = false;
     }

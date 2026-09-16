@@ -11,6 +11,7 @@ import type {
   Hover,
   MarkedString,
   MarkupContent,
+  TextEdit,
 } from "vscode-languageserver-types";
 import { getMonaco } from "./getMonaco";
 import { TauriMessageReader, TauriMessageWriter } from "./tauriTransport";
@@ -174,6 +175,35 @@ export function registerCompletion(
   });
 }
 
+export function registerFormatting(
+  monaco: typeof Monaco,
+  connectionPromiseRef: ConnectionRef,
+  language: string,
+) {
+  return monaco.languages.registerDocumentFormattingEditProvider(language, {
+    async provideDocumentFormattingEdits(model) {
+      const connection = await connectionPromiseRef.current;
+      const result = await connection.sendRequest<TextEdit[] | null>(
+        "textDocument/formatting",
+        {
+          textDocument: { uri: getLspUri(model) },
+          options: { tabSize: 4, insertSpaces: true },
+        },
+      );
+      if (!result) return [];
+      return result.map((edit) => ({
+        range: {
+          startLineNumber: edit.range.start.line + 1,
+          startColumn: edit.range.start.character + 1,
+          endLineNumber: edit.range.end.line + 1,
+          endColumn: edit.range.end.character + 1,
+        },
+        text: edit.newText,
+      }));
+    },
+  });
+}
+
 export async function getOrStartLSP(
   language: string,
   rootUri: string,
@@ -187,6 +217,7 @@ export async function getOrStartLSP(
       connectionCache.set(language, ref);
       registerHover(monaco, ref, language);
       registerCompletion(monaco, ref, language);
+      registerFormatting(monaco, ref, language);
     } else {
       ref.current = newPromise;
       ref.invalidated = false;
