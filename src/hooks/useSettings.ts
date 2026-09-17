@@ -7,6 +7,7 @@ import type { SettingKey } from "../types";
 interface SettingsState {
   fontSize: number;
   fontFamily: string;
+  formatOnSave: boolean;
   gppPath: string;
   compilerArgs: string;
   pythonPath: string;
@@ -17,6 +18,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   fontSize: 13,
   fontFamily:
     '"SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+  formatOnSave: false,
   gppPath: "g++",
   compilerArgs: "-std=c++14 -O2",
   pythonPath: "python",
@@ -80,7 +82,10 @@ export function useSettings() {
     };
   }, []);
 
-  const onSettingChange = async (key: SettingKey, value: number | string) => {
+  const onSettingChange = async (
+    key: SettingKey,
+    value: number | string | boolean,
+  ) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setError(null);
     const language = LSP_SETTING_TO_LANGUAGE[key];

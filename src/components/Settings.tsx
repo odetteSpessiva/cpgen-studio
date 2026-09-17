@@ -42,10 +42,10 @@ const COMPILER_ARGS_OPTIONS = [
   },
 ];
 
-function useCommittedSetting<T extends number | string>(
+function useCommittedSetting<T extends number | string | boolean>(
   key: SettingKey,
   currentValue: T,
-  onSettingChange: (key: SettingKey, value: number | string) => void,
+  onSettingChange: (key: SettingKey, value: number | string | boolean) => void,
   parse: (raw: string) => T | null,
   clamp?: (value: T) => T,
 ) {
@@ -65,7 +65,17 @@ function useCommittedSetting<T extends number | string>(
     if (next !== currentValue) onSettingChange(key, next);
   };
 
-  return { inputValue, setInputValue, commit };
+  const commitValue = (value: T) => {
+    if (value !== currentValue) onSettingChange(key, value);
+  };
+
+  return {
+    inputValue,
+    setInputValue,
+    commit,
+    value: currentValue,
+    commitValue,
+  };
 }
 
 const parseFontSize = (raw: string): number | null => {
@@ -80,22 +90,58 @@ const parseString = (raw: string): string | null => {
   return trimmed === "" ? null : trimmed;
 };
 
-interface SettingFieldProps {
+type SettingValue = number | string | boolean;
+
+interface SettingFieldProps<T extends SettingValue> {
   label: string;
-  field: Pick<
-    ReturnType<typeof useCommittedSetting>,
-    "inputValue" | "setInputValue" | "commit"
-  >;
+  field: {
+    inputValue: string;
+    setInputValue: React.Dispatch<React.SetStateAction<string>>;
+    commit: (raw?: string) => void;
+    value: T;
+    commitValue: (value: T) => void;
+  };
+  boolean?: boolean;
   inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
   children?: React.ReactNode;
 }
 
-function SettingField({
+function SettingField<T extends SettingValue>({
   label,
   field,
+  boolean = false,
   inputProps,
   children,
-}: SettingFieldProps) {
+}: SettingFieldProps<T>) {
+  if (boolean) {
+    return (
+      <div className="flex items-center gap-3 mb-3 whitespace-nowrap">
+        <label className="w-21.25 text-[13px] text-(--text-secondary) shrink-0 text-right whitespace-nowrap">
+          {label}
+        </label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={field.value as boolean}
+          aria-label={label}
+          onClick={() => {
+            const nextValue = !(field.value as boolean);
+            field.commitValue(nextValue as T);
+          }}
+          className={`relative h-5 w-9 shrink-0 overflow-hidden rounded-full border transition-colors ${field.value ? "border-(--accent) bg-(--accent)" : "border-(--border) bg-(--bg-input)"}`}
+        >
+          <span
+            className="absolute left-0 top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-transform"
+            style={{
+              transform: `translateX(${field.value ? 20 : 2}px)`,
+            }}
+          />
+        </button>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className={ROW_CLASS}>
       <label className={LABEL_CLASS}>{label}</label>
@@ -120,6 +166,7 @@ export default function Settings() {
   const {
     fontSize,
     fontFamily,
+    formatOnSave,
     gppPath,
     compilerArgs,
     pythonPath,
@@ -142,6 +189,13 @@ export default function Settings() {
     fontFamily,
     onSettingChange,
     parseString,
+  );
+
+  const formatOnSaveField = useCommittedSetting(
+    "formatOnSave",
+    formatOnSave,
+    onSettingChange,
+    (raw) => (raw === "true" ? true : raw === "false" ? false : null),
   );
 
   const gppPathField = useCommittedSetting(
@@ -242,6 +296,8 @@ export default function Settings() {
               ))}
             </div>
           </SettingField>
+
+          <SettingField label="Auto format" field={formatOnSaveField} boolean />
         </Section>
 
         <Section title="Compiler">

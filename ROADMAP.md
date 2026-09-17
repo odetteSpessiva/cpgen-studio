@@ -33,7 +33,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] **Color-coded blocks**: visual differentiation by block category (input / output / constraint / generator, etc.)
 - [x] **Settings page**: global configuration for application behavior, compiler flags, and other configurable defaults
 - [x] Replace pylsp path setting with py env path because my dumbass forgot it was a python module, not an executable
-- [ ] Format on save
+- [x] Format on save
 
 ## Subtasks (1.0)
 

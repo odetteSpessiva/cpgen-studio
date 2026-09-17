@@ -16,6 +16,7 @@ export interface WorkspaceFilePayload {
 export type SettingKey =
   | "fontSize"
   | "fontFamily"
+  | "formatOnSave"
   | "gppPath"
   | "compilerArgs"
   | "pythonPath"

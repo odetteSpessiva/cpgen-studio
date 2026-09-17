@@ -141,6 +141,7 @@ function createMockModel(
 interface MockEditorInstance {
   getModel: () => MockModel | null;
   getSelections: () => null;
+  getAction: (id: string) => { run: () => Promise<void> } | undefined;
   onDidChangeModel: (cb: () => void) => { dispose: () => void };
   onDidDispose: (cb: () => void) => void;
   addCommand: (keybinding: number, cb: () => void | Promise<void>) => void;
@@ -153,6 +154,7 @@ const CTRL_S_KEYBINDING = 1 | 2; // matches monacoNs.KeyMod.CtrlCmd | monacoNs.K
 
 function createMockEditorInstance(
   initialModel: MockModel | null,
+  formatDocument?: () => Promise<void>,
 ): MockEditorInstance {
   let currentModel = initialModel;
   const modelChangeListeners = new Set<() => void>();
@@ -162,6 +164,10 @@ function createMockEditorInstance(
   return {
     getModel: () => currentModel,
     getSelections: () => null,
+    getAction: (id) =>
+      id === "editor.action.formatDocument" && formatDocument
+        ? { run: formatDocument }
+        : undefined,
     onDidChangeModel: (cb) => {
       modelChangeListeners.add(cb);
       return { dispose: () => modelChangeListeners.delete(cb) };
@@ -332,6 +338,38 @@ describe("useMonacoEditor", () => {
   });
 
   describe("performSave / Ctrl+S", () => {
+    it("formats the document before saving when format-on-save is enabled", async () => {
+      const formatDocument = vi.fn().mockResolvedValue(undefined);
+      const saveActiveFile = vi.fn().mockResolvedValue(true);
+      const activeFile = makeActiveFile();
+      const model = createMockModel(activeFile.value);
+      const editorInstance = createMockEditorInstance(
+        model as never,
+        formatDocument,
+      );
+
+      const { result } = renderHook(() =>
+        useMonacoEditor({
+          activeFile,
+          formatOnSave: true,
+          handleCodeChange: vi.fn(),
+          saveActiveFile,
+          setIsDirty: vi.fn(),
+        }),
+      );
+
+      act(() => {
+        result.current.handleEditorMount(editorInstance as never, monacoNs);
+      });
+
+      await act(async () => {
+        await result.current.performSave();
+      });
+
+      expect(formatDocument).toHaveBeenCalledTimes(1);
+      expect(saveActiveFile).toHaveBeenCalledTimes(1);
+    });
+
     it("produces the same outcome whether triggered via Ctrl+S or by calling performSave directly", async () => {
       const handleCodeChange = vi.fn();
       const setIsDirty = vi.fn();

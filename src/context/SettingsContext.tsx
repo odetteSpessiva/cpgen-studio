@@ -6,11 +6,12 @@ import { SettingKey } from "../types";
 interface SettingsContextValue {
   fontSize: number;
   fontFamily: string;
+  formatOnSave: boolean;
   gppPath: string;
   compilerArgs: string;
   pythonPath: string;
   clangdPath: string;
-  onSettingChange: (key: SettingKey, value: number | string) => void;
+  onSettingChange: (key: SettingKey, value: number | string | boolean) => void;
   error: string | null;
   setError: (
     value: string | null | ((prev: string | null) => string | null),

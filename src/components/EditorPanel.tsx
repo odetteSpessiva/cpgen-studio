@@ -47,10 +47,11 @@ export default function EditorPanel() {
 
   const { appendLog } = useConsoleLogsContext();
   const { previewSchema } = usePipelineContext();
-  const { fontSize, fontFamily } = useSettingsContext();
+  const { fontSize, fontFamily, formatOnSave } = useSettingsContext();
 
   const { handleEditorMount } = useMonacoEditor({
     activeFile,
+    formatOnSave,
     handleCodeChange,
     saveActiveFile,
     setIsDirty,

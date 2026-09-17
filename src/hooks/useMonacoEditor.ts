@@ -12,6 +12,7 @@ type TrackedModel = editor.ITextModel & {
 
 interface UseMonacoEditorOptions {
   activeFile: WorkspaceFile | null;
+  formatOnSave?: boolean;
   handleCodeChange: (path: string, newValue: string) => void;
   saveActiveFile: (contentOverride?: string) => Promise<boolean>;
   setIsDirty: (path: string, isDirty: boolean) => void;
@@ -74,6 +75,7 @@ function cleanCode(model: TrackedModel, selections: Selection[] | null) {
 
 export function useMonacoEditor({
   activeFile,
+  formatOnSave = false,
   handleCodeChange,
   saveActiveFile,
   setIsDirty,
@@ -83,6 +85,7 @@ export function useMonacoEditor({
   const saveRef = useLatest(saveActiveFile);
   const setIsDirtyRef = useLatest(setIsDirty);
   const activeFileRef = useLatest(activeFile);
+  const formatOnSaveRef = useLatest(formatOnSave);
   const modelRef = useRef<TrackedModel | null>(null);
   const editorRef = useRef<editor.ICodeEditor | null>(null);
   // Path the *currently bound* model corresponds to (not necessarily activeFile.path,
@@ -137,6 +140,12 @@ export function useMonacoEditor({
     if (!currentModel || currentModel.isDisposed() || !savePath) return false;
     isProgrammaticUpdateRef.current = true;
     try {
+      if (formatOnSaveRef.current) {
+        const formatAction = editorRef.current?.getAction(
+          "editor.action.formatDocument",
+        );
+        if (formatAction) await formatAction.run();
+      }
       hasPendingEditRef.current =
         cleanCode(currentModel, editorRef.current?.getSelections() ?? null) ||
         hasPendingEditRef.current;
@@ -165,7 +174,7 @@ export function useMonacoEditor({
       console.error("Failed to save active file:", err);
       return false;
     }
-  }, [flush, saveRef, setIsDirtyRef]);
+  }, [flush, formatOnSaveRef, saveRef, setIsDirtyRef]);
 
   const handleEditorMount: OnMount = (editorInstance, monaco) => {
     editorRef.current = editorInstance;

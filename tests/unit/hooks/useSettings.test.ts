@@ -12,6 +12,7 @@ const DEFAULTS = {
   fontSize: 13,
   fontFamily:
     '"SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+  formatOnSave: false,
 };
 
 function makeMockStore(data: Record<string, unknown> = {}) {
@@ -36,6 +37,7 @@ describe("useSettings", () => {
 
     expect(result.current.fontSize).toBe(DEFAULTS.fontSize);
     expect(result.current.fontFamily).toBe(DEFAULTS.fontFamily);
+    expect(result.current.formatOnSave).toBe(DEFAULTS.formatOnSave);
     expect(result.current.isLoaded).toBe(false);
     expect(result.current.error).toBeNull();
   });
@@ -115,6 +117,22 @@ describe("useSettings", () => {
     expect(mockStore.set).toHaveBeenCalledWith("fontSize", 22);
     expect(mockStore.save).toHaveBeenCalled();
     expect(result.current.error).toBeNull();
+  });
+
+  it("loads and persists format-on-save", async () => {
+    const mockStore = makeMockStore({ formatOnSave: true });
+    vi.mocked(Store.load).mockResolvedValue(mockStore as never);
+
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() => expect(result.current.isLoaded).toBe(true));
+
+    expect(result.current.formatOnSave).toBe(true);
+    await act(async () => {
+      await result.current.onSettingChange("formatOnSave", false);
+    });
+
+    expect(result.current.formatOnSave).toBe(false);
+    expect(mockStore.set).toHaveBeenCalledWith("formatOnSave", false);
   });
 
   it("clears a previous error at the start of a new change attempt", async () => {
