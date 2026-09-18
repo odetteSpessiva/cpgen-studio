@@ -9,6 +9,7 @@ import {
   invalidateLspConnection,
   registerCompletion,
   registerDiagnostics,
+  registerFormatting,
   registerHover,
   startLSP,
 } from "../../../src/lsp/monacoIntegration";
@@ -48,6 +49,7 @@ interface FakeMonaco {
   languages: {
     registerHoverProvider: ReturnType<typeof vi.fn>;
     registerCompletionItemProvider: ReturnType<typeof vi.fn>;
+    registerDocumentFormattingEditProvider: ReturnType<typeof vi.fn>;
     CompletionItemKind: { Text: number };
   };
   editor: {
@@ -69,6 +71,9 @@ function createFakeMonaco(): FakeMonaco {
         (_language: string, provider: unknown) => provider,
       ),
       registerCompletionItemProvider: vi.fn(
+        (_language: string, provider: unknown) => provider,
+      ),
+      registerDocumentFormattingEditProvider: vi.fn(
         (_language: string, provider: unknown) => provider,
       ),
       CompletionItemKind: { Text: 18 },
@@ -173,6 +178,9 @@ describe("getOrStartLSP", () => {
     expect(
       fakeMonaco.languages.registerCompletionItemProvider,
     ).toHaveBeenCalledTimes(1);
+    expect(
+      fakeMonaco.languages.registerDocumentFormattingEditProvider,
+    ).toHaveBeenCalledTimes(1);
   });
 
   it("registers diagnostics against the freshly started connection", async () => {
@@ -218,6 +226,9 @@ describe("getOrStartLSP", () => {
     expect(fakeMonaco.languages.registerHoverProvider).toHaveBeenCalledTimes(1);
     expect(
       fakeMonaco.languages.registerCompletionItemProvider,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      fakeMonaco.languages.registerDocumentFormattingEditProvider,
     ).toHaveBeenCalledTimes(1);
   });
 });
@@ -435,6 +446,72 @@ describe("registerCompletion", () => {
         position: { line: 3, character: 8 },
       },
     );
+  });
+});
+
+describe("registerFormatting", () => {
+  function setup(sendRequestResult: unknown) {
+    const fakeMonaco = createFakeMonaco();
+    const connection = createFakeConnection();
+    connection.sendRequest.mockResolvedValue(sendRequestResult);
+    const ref = {
+      current: Promise.resolve(connection as unknown as MessageConnection),
+      invalidated: false,
+    };
+    registerFormatting(fakeMonaco as never, ref, "cpp");
+    const provider = fakeMonaco.languages.registerDocumentFormattingEditProvider
+      .mock.results[0].value as Monaco.languages.DocumentFormattingEditProvider;
+    return { connection, provider };
+  }
+
+  it("returns no edits when the server has nothing to offer", async () => {
+    const { provider } = setup(null);
+
+    const result = await provider.provideDocumentFormattingEdits(
+      createFakeModel("file:///main.cpp"),
+      {} as never,
+      {} as never,
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it("requests formatting and maps LSP edits to 1-indexed Monaco ranges", async () => {
+    const { connection, provider } = setup([
+      {
+        range: {
+          start: { line: 1, character: 2 },
+          end: { line: 3, character: 4 },
+        },
+        newText: "formatted",
+      },
+    ]);
+    const model = createFakeModel("file:///main.cpp");
+
+    const result = await provider.provideDocumentFormattingEdits(
+      model,
+      {} as never,
+      {} as never,
+    );
+
+    expect(connection.sendRequest).toHaveBeenCalledWith(
+      "textDocument/formatting",
+      {
+        textDocument: { uri: "file:///main.cpp" },
+        options: { tabSize: 4, insertSpaces: true },
+      },
+    );
+    expect(result).toEqual([
+      {
+        range: {
+          startLineNumber: 2,
+          startColumn: 3,
+          endLineNumber: 4,
+          endColumn: 5,
+        },
+        text: "formatted",
+      },
+    ]);
   });
 });
 

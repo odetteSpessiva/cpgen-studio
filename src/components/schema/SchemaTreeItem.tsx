@@ -56,7 +56,12 @@ const SchemaTreeItemComponent = forwardRef<
   }
 
   return (
-    <FolderTreeItemWrapper {...wrapperProps} item={item} ref={ref}>
+    <FolderTreeItemWrapper
+      {...wrapperProps}
+      item={item}
+      ref={ref}
+      hideCollapseButton
+    >
       <FieldItemContent
         node={item.node}
         isSelected={selectedId === item.node.id}
@@ -65,6 +70,9 @@ const SchemaTreeItemComponent = forwardRef<
         onSelect={onSelect}
         onUpdate={onUpdate}
         onRemove={wrapperProps.onRemove}
+        childCount={wrapperProps.childCount}
+        childrenCollapsed={wrapperProps.collapsed}
+        onToggleChildrenCollapsed={wrapperProps.onCollapse}
       />
     </FolderTreeItemWrapper>
   );
@@ -82,6 +90,9 @@ function FieldItemContent({
   onSelect,
   onUpdate,
   onRemove,
+  childCount,
+  childrenCollapsed,
+  onToggleChildrenCollapsed,
 }: {
   node: SchemaNode;
   isSelected: boolean;
@@ -90,6 +101,9 @@ function FieldItemContent({
   onSelect: (id: string, e: React.MouseEvent) => void;
   onUpdate: (id: string, updated: Partial<SchemaNode>) => void;
   onRemove?: () => void;
+  childCount?: number;
+  childrenCollapsed?: boolean;
+  onToggleChildrenCollapsed?: () => void;
 }) {
   const nodeMeta = getNodeKindMeta(node.kind);
   const categoryColor = nodeMeta.color;
@@ -162,6 +176,16 @@ function FieldItemContent({
               className="text-(--text-muted) hover:text-(--text-primary) text-xs px-1 cursor-pointer"
             >
               {fieldsCollapsed ? "▶" : "▼"}
+            </button>
+          )}
+
+          {nodeMeta.hasChildren && !!childCount && (
+            <button
+              type="button"
+              onClick={onToggleChildrenCollapsed}
+              className="text-(--text-muted) hover:text-(--text-primary) text-xs px-1 cursor-pointer"
+            >
+              {childrenCollapsed ? "▶" : "▼"}
             </button>
           )}
 

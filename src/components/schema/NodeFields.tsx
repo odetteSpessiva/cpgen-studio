@@ -215,7 +215,11 @@ export default function NodeFields({ node, onUpdate }: NodeFieldsProps) {
             }
             onToggle={(checked) =>
               update({
-                outputFormat: checked ? `{${node.varName}}\\n` : undefined,
+                outputFormat: checked
+                  ? node.kind === "float"
+                    ? `{${node.varName}:.2}\\n`
+                    : `{${node.varName}}\\n`
+                  : undefined,
               })
             }
           >

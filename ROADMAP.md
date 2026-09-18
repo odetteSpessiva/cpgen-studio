@@ -21,7 +21,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] **Conditional block**: an `IF` block supporting basic branching logic within a schema tree
 - [ ] **Additional block types**: expand the block library over time
 - [x] **Savable schema**: export/import the schema as JSON
-- [ ] **Cross-container drag and drop**: move blocks between nested containers and the root reliably
+- [x] **Cross-container drag and drop**: move blocks between nested containers and the root reliably
 
 ## Fixes
 
@@ -50,6 +50,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] Support LSP for code autocompletion
 - [x] In app method to download mingw
 - [ ] Output format for strings
+- [ ] Support other languages
 
 ---
 
