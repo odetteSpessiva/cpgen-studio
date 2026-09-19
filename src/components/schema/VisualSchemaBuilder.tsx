@@ -94,6 +94,7 @@ export default function VisualSchemaBuilder() {
           min: "1",
           max: "100",
         },
+        unique: false,
       },
       loop: { id, kind: "loop", count: "T", children: [] },
       if: {

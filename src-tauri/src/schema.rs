@@ -3,7 +3,7 @@ use crate::expr;
 use crate::format as numeric_formatter;
 use rand::{rngs::StdRng, Rng, RngExt, SeedableRng};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -75,6 +75,7 @@ pub enum SchemaNode {
         length: String,
         separator: Separator,
         element: PrimitiveSpec,
+        unique: bool,
     },
     Loop {
         count: String,
@@ -197,6 +198,79 @@ impl Interpreter {
             } => self.gen_string(length, charset, custom_charset),
         }
     }
+    fn generate_unique(&mut self, element: &PrimitiveSpec, n: i64) -> Result<Vec<String>, String> {
+        match element {
+            PrimitiveSpec::Int { min, max } => {
+                let lo = self.resolve_int("min", min)?;
+                let hi = self.resolve_int("max", max)?;
+                if lo > hi {
+                    return Err(format!("min ({lo}) is greater than max ({hi})"));
+                }
+                let range_size = hi - lo + 1;
+                if n > range_size {
+                    return Err(format!(
+                    "cannot generate {n} unique values: range [{lo}, {hi}] only has {range_size}"
+                ));
+                }
+
+                let mut pool: Vec<i64> = (lo..=hi).collect();
+                for i in 0..n as usize {
+                    let j = i + (self.rng.random::<u64>() as usize % (pool.len() - i));
+                    pool.swap(i, j);
+                }
+                pool.truncate(n as usize);
+                Ok(pool.into_iter().map(|v| v.to_string()).collect())
+            }
+            // I know this is stupid, don't yell at me
+            // Honestly who cares, why would you want unique floats and strings
+            PrimitiveSpec::Float { min, max } => {
+                let lo = self.resolve_number("min", min)?;
+                let hi = self.resolve_number("max", max)?;
+                if lo > hi {
+                    return Err(format!("min ({lo}) is greater than max ({hi})"));
+                }
+                const SCALE: f64 = 100.0; // Float gets an extra 2 decimal digits
+                let lo_i = (lo * SCALE).round() as i64;
+                let hi_i = (hi * SCALE).round() as i64;
+                let range_size = hi_i - lo_i + 1;
+                if n > range_size {
+                    return Err(format!(
+                    "cannot generate {n} unique values: range [{lo}, {hi}] only supports {range_size} distinct values at 2 decimal places"
+                ));
+                }
+
+                let mut pool: Vec<i64> = (lo_i..=hi_i).collect();
+                for i in 0..n as usize {
+                    let j = i + (self.rng.random::<u64>() as usize % (pool.len() - i));
+                    pool.swap(i, j);
+                }
+                pool.truncate(n as usize);
+                Ok(pool
+                    .into_iter()
+                    .map(|v| format!("{:.2}", v as f64 / SCALE))
+                    .collect())
+            }
+            _ => {
+                let mut seen = HashSet::with_capacity(n as usize);
+                let mut items = Vec::with_capacity(n as usize);
+                let mut attempts: u64 = 0;
+                let max_attempts = (n as u64).saturating_mul(1000).max(10_000);
+                while items.len() < n as usize {
+                    attempts += 1;
+                    if attempts > max_attempts {
+                        return Err(format!(
+                        "could not generate {n} unique values: charset/length too small for the requested count"
+                    ));
+                    }
+                    let value = self.gen_primitive(element)?;
+                    if seen.insert(value.clone()) {
+                        items.push(value);
+                    }
+                }
+                Ok(items)
+            }
+        }
+    }
 }
 
 impl Interpreter {
@@ -257,6 +331,7 @@ impl Interpreter {
                     length,
                     separator,
                     element,
+                    unique,
                     ..
                 } => {
                     let n = self.resolve_int("length", length)?;
@@ -268,9 +343,14 @@ impl Interpreter {
                         Separator::Newline => "\n",
                         Separator::Comma => ",",
                     };
-                    let mut items = Vec::with_capacity(n as usize);
-                    for _ in 0..n {
-                        items.push(self.gen_primitive(element)?);
+                    let mut items;
+                    if *unique {
+                        items = self.generate_unique(element, n)?;
+                    } else {
+                        items = Vec::with_capacity(n as usize);
+                        for _ in 0..n {
+                            items.push(self.gen_primitive(element)?);
+                        }
                     }
                     let line = items.join(sep);
                     self.bind(var_name, Value::Text);
@@ -608,6 +688,7 @@ mod tests {
                 min: "1".to_string(),
                 max: "1".to_string(),
             },
+            unique: false,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
@@ -625,6 +706,7 @@ mod tests {
                 min: "2".to_string(),
                 max: "2".to_string(),
             },
+            unique: false,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
@@ -642,6 +724,7 @@ mod tests {
                 min: "3".to_string(),
                 max: "3".to_string(),
             },
+            unique: false,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
@@ -659,6 +742,7 @@ mod tests {
                 min: "1".to_string(),
                 max: "1".to_string(),
             },
+            unique: false,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
@@ -676,6 +760,7 @@ mod tests {
                 min: "1".to_string(),
                 max: "1".to_string(),
             },
+            unique: false,
         }];
         let mut out = Vec::new();
         let err = interp.eval_nodes(&nodes, &mut out).unwrap_err();
@@ -693,10 +778,103 @@ mod tests {
                 min: "1".to_string(),
                 max: "1".to_string(),
             },
+            unique: false,
         }];
         let mut out = Vec::new();
         interp.eval_nodes(&nodes, &mut out).unwrap();
         assert_eq!(out, vec!["\n".to_string()]);
+    }
+
+    #[test]
+    fn eval_nodes_unique_integer_array_contains_no_duplicates() {
+        let mut interp = make_interp(1);
+        let nodes = vec![SchemaNode::Array {
+            var_name: None,
+            length: "5".to_string(),
+            separator: Separator::Space,
+            element: PrimitiveSpec::Int {
+                min: "1".to_string(),
+                max: "5".to_string(),
+            },
+            unique: true,
+        }];
+        let mut out = Vec::new();
+
+        interp.eval_nodes(&nodes, &mut out).unwrap();
+
+        let values: Vec<i64> = out[0]
+            .split_whitespace()
+            .map(|value| value.parse().unwrap())
+            .collect();
+        let distinct: HashSet<_> = values.iter().copied().collect();
+        assert_eq!(values.len(), 5);
+        assert_eq!(distinct.len(), values.len());
+    }
+
+    #[test]
+    fn eval_nodes_unique_float_array_uses_two_decimal_precision() {
+        let mut interp = make_interp(1);
+        let nodes = vec![SchemaNode::Array {
+            var_name: None,
+            length: "3".to_string(),
+            separator: Separator::Comma,
+            element: PrimitiveSpec::Float {
+                min: "0".to_string(),
+                max: "0.02".to_string(),
+            },
+            unique: true,
+        }];
+        let mut out = Vec::new();
+
+        interp.eval_nodes(&nodes, &mut out).unwrap();
+
+        let values: Vec<&str> = out[0].trim().split(',').collect();
+        assert_eq!(values.len(), 3);
+        assert!(values.iter().all(|value| value.len() == 4));
+        assert_eq!(values.iter().collect::<HashSet<_>>().len(), values.len());
+    }
+
+    #[test]
+    fn eval_nodes_unique_string_array_contains_no_duplicates() {
+        let mut interp = make_interp(1);
+        let nodes = vec![SchemaNode::Array {
+            var_name: None,
+            length: "3".to_string(),
+            separator: Separator::Space,
+            element: PrimitiveSpec::String {
+                length: "1".to_string(),
+                charset: Charset::Custom,
+                custom_charset: Some("abc".to_string()),
+            },
+            unique: true,
+        }];
+        let mut out = Vec::new();
+
+        interp.eval_nodes(&nodes, &mut out).unwrap();
+
+        let values: Vec<&str> = out[0].split_whitespace().collect();
+        assert_eq!(values.len(), 3);
+        assert_eq!(values.iter().collect::<HashSet<_>>().len(), values.len());
+    }
+
+    #[test]
+    fn eval_nodes_unique_array_rejects_insufficient_integer_range() {
+        let mut interp = make_interp(1);
+        let nodes = vec![SchemaNode::Array {
+            var_name: None,
+            length: "3".to_string(),
+            separator: Separator::Space,
+            element: PrimitiveSpec::Int {
+                min: "1".to_string(),
+                max: "2".to_string(),
+            },
+            unique: true,
+        }];
+        let mut out = Vec::new();
+
+        let error = interp.eval_nodes(&nodes, &mut out).unwrap_err();
+
+        assert!(error.contains("cannot generate 3 unique values"));
     }
 
     // eval_nodes: Loop
@@ -878,6 +1056,8 @@ mod tests {
                     min: "1".to_string(),
                     max: "1".to_string(),
                 },
+
+                unique: false,
             },
         ];
         let mut out = Vec::new();

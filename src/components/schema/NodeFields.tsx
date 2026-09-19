@@ -78,6 +78,27 @@ function SelectField<T extends string>({
   );
 }
 
+function BooleanField({
+  label,
+  value,
+  onToggle,
+}: {
+  label: string;
+  value: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[12px] text-(--text-secondary) mb-1">
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onToggle(e.target.checked)}
+      />
+      {label}
+    </label>
+  );
+}
+
 function OptionalTextField<T>({
   label,
   value,
@@ -276,6 +297,11 @@ export default function NodeFields({ node, onUpdate }: NodeFieldsProps) {
         <PrimitiveFields
           spec={node.element}
           onChange={(element) => update({ element })}
+        />
+        <BooleanField
+          label="Unique"
+          value={node.unique}
+          onToggle={(enabled) => update({ unique: enabled })}
         />
       </div>
     );

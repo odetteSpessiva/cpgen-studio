@@ -59,6 +59,7 @@ const DEFAULT_NODES: SchemaNode[] = [
           length: "10",
           charset: "alphanumeric",
         },
+        unique: false,
       },
     ],
   },

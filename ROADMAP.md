@@ -1,6 +1,6 @@
 # Roadmap
 
-CPGen Studio is currently in alpha (`0.2.4-alpha.1`). This document tracks the features planned for the `1.0` release.
+CPGen Studio is currently in alpha (`0.2.5-alpha.1`). This document tracks the features planned for the `1.0` release.
 
 ## Milestone: 1.0
 
@@ -26,7 +26,6 @@ All other items below are being implemented in the lead-up to `1.0`.
 ## Fixes
 
 - [x] **Remove index delivery option in visual mode**: not applicable in this mode, should be hidden/disabled
-- [ ] **Optimize schema builder's findParentList**: currently running an (potentially) expensive tree walk when user starts dragging
 
 ## Editor & UI
 
@@ -51,6 +50,8 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] In app method to download mingw
 - [ ] Output format for strings
 - [ ] Support other languages
+- [ ] Single click export to zip
+- [ ] Add premature termination for test generation
 
 ---
 

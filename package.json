@@ -19,7 +19,7 @@
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
     "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:rust:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
-    "check": "npm run lint && npm run format:check && npm run lint:rust && npm run format:rust:check && npm run test:run && npm run test:rust"
+    "check": "npm run lint && npm run format:check && npm run lint:rust && npm run format:rust:check && npm run test:run && npm run test:rust && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

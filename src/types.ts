@@ -81,6 +81,7 @@ export interface ArrayNode extends BaseNode {
   length: string;
   separator: "space" | "newline" | "comma";
   element: PrimitiveSpec;
+  unique: boolean;
 }
 
 export interface LoopNode extends BaseNode {

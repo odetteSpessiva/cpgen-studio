@@ -61,6 +61,7 @@ const SchemaTreeItemComponent = forwardRef<
       item={item}
       ref={ref}
       hideCollapseButton
+      contentClassName="w-full"
     >
       <FieldItemContent
         node={item.node}

@@ -113,7 +113,7 @@ fn validate_primitive_spec(spec: &PrimitiveSpec, path: &str, errors: &mut Vec<Va
 #[cfg(test)]
 mod tests {
     use super::validate;
-    use crate::schema::{Charset, SchemaNode};
+    use crate::schema::{Charset, PrimitiveSpec, SchemaNode, Separator};
 
     #[test]
     fn accepts_valid_output_format_and_custom_charset() {
@@ -129,6 +129,17 @@ mod tests {
                 length: "3".to_string(),
                 charset: Charset::Custom,
                 custom_charset: Some("abc".to_string()),
+            },
+            SchemaNode::Array {
+                var_name: None,
+                length: "3".to_string(),
+                separator: Separator::Space,
+                element: PrimitiveSpec::String {
+                    length: "2".to_string(),
+                    charset: Charset::Custom,
+                    custom_charset: Some("abc".to_string()),
+                },
+                unique: true,
             },
         ];
 
