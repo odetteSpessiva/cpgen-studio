@@ -1,6 +1,7 @@
 name: Sync version to markdown
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
