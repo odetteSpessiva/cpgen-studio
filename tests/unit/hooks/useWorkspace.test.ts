@@ -23,7 +23,7 @@ describe("useWorkspaceFiles", () => {
   });
 
   describe("setWorkspaceFile(slot, null)", () => {
-    it("clears activeFileSlot when nulling the currently active file", async () => {
+    it("clears activePath when nulling the currently active file", async () => {
       const appendLog = vi.fn();
       mockedInvoke
         .mockResolvedValueOnce({
@@ -46,19 +46,19 @@ describe("useWorkspaceFiles", () => {
         await result.current.loadWorkspaceFile("solution", "/tmp/sol.cpp");
       });
 
-      expect(result.current.activeFileSlot).toBe("solution");
+      expect(result.current.activePath).toBe("/tmp/sol.cpp");
 
       act(() => {
         result.current.setWorkspaceFile("solution", null);
       });
 
       expect(result.current.solutionFile).toBeNull();
-      expect(result.current.solutionPath).toBe("");
-      expect(result.current.activeFileSlot).toBeNull();
+      expect(result.current.slotPaths.solution).toBe("");
+      expect(result.current.activePath).toBeNull();
       expect(result.current.generatorFile).not.toBeNull();
     });
 
-    it("leaves activeFileSlot untouched when nulling a different, inactive slot", async () => {
+    it("leaves activePath untouched when nulling a different, inactive slot", async () => {
       const appendLog = vi.fn();
       mockedInvoke
         .mockResolvedValueOnce({
@@ -81,15 +81,15 @@ describe("useWorkspaceFiles", () => {
         await result.current.loadWorkspaceFile("solution", "/tmp/sol.cpp");
       });
 
-      expect(result.current.activeFileSlot).toBe("solution");
+      expect(result.current.activePath).toBe("/tmp/sol.cpp");
 
       act(() => {
         result.current.setWorkspaceFile("generator", null);
       });
 
       expect(result.current.generatorFile).toBeNull();
-      expect(result.current.generatorPath).toBe("");
-      expect(result.current.activeFileSlot).toBe("solution");
+      expect(result.current.slotPaths.generator).toBe("");
+      expect(result.current.activePath).toBe("/tmp/sol.cpp");
       expect(result.current.solutionFile).not.toBeNull();
     });
   });
@@ -121,7 +121,7 @@ describe("useWorkspaceFiles", () => {
           isDirty: false,
         }),
       );
-      expect(result.current.activeFileSlot).toBe("generator");
+      expect(result.current.activePath).toBe("/tmp/gen.cpp");
     });
 
     it("logs an error and leaves state untouched when invoke rejects", async () => {

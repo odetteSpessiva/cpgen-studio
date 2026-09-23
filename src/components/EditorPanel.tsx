@@ -36,8 +36,9 @@ export default function EditorPanel() {
     generatorFile,
     solutionFile,
     activeFile,
-    activeFileSlot,
-    setActiveFileSlot,
+    activePath,
+    slotPaths,
+    setActivePath,
     handleCodeChange,
     saveActiveFile,
     setIsDirty,
@@ -59,8 +60,12 @@ export default function EditorPanel() {
 
   const [previewExample, setPreviewExample] = useState<string | null>(null);
 
-  const showSchemaPreview =
-    generatorMode === "visual" && activeFileSlot === "generator";
+  const isGeneratorActive =
+    activePath !== null && activePath === slotPaths.generator;
+  const isSolutionActive =
+    activePath !== null && activePath === slotPaths.solution;
+
+  const showSchemaPreview = generatorMode === "visual" && isGeneratorActive;
 
   const generatorTabDisabled = generatorMode === "files" && !generatorFile;
 
@@ -69,8 +74,8 @@ export default function EditorPanel() {
       <div className="h-9.5 shrink-0 flex items-stretch gap-0.5 bg-(--bg-secondary) border-b border-(--border) px-2">
         <button
           type="button"
-          className={`${TAB_CLASS} ${activeFileSlot === "generator" ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS}`}
-          onClick={() => setActiveFileSlot("generator")}
+          className={`${TAB_CLASS} ${isGeneratorActive ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS}`}
+          onClick={() => setActivePath(slotPaths.generator)}
           disabled={generatorTabDisabled}
         >
           {generatorMode === "visual"
@@ -83,8 +88,8 @@ export default function EditorPanel() {
 
         <button
           type="button"
-          className={`${TAB_CLASS} ${activeFileSlot === "solution" ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS}`}
-          onClick={() => setActiveFileSlot("solution")}
+          className={`${TAB_CLASS} ${isSolutionActive ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS}`}
+          onClick={() => setActivePath(slotPaths.solution)}
           disabled={!solutionFile}
         >
           {solutionFile?.name ?? "Solution"}

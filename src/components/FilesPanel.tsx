@@ -1,8 +1,8 @@
 import { useWorkspaceContext } from "../context/WorkspaceContext";
-import PathPicker from "./PathPicker";
-import ParametersForm from "./ParametersForm";
-import VisualSchemaBuilder from "./schema/VisualSchemaBuilder";
 import type { GeneratorMode } from "../types";
+import ParametersForm from "./ParametersForm";
+import PathPicker from "./PathPicker";
+import VisualSchemaBuilder from "./schema/VisualSchemaBuilder";
 
 const TABS: { id: GeneratorMode; label: string }[] = [
   { id: "files", label: "Code Files" },
@@ -11,13 +11,11 @@ const TABS: { id: GeneratorMode; label: string }[] = [
 
 export default function FilesPanel() {
   const {
-    generatorPath,
-    solutionPath,
+    slotPaths,
+    assignSlot,
     outputPath,
     generatorMode,
     setGeneratorMode,
-    setGeneratorPath,
-    setSolutionPath,
     setOutputPath,
     loadWorkspaceFile,
     browseWorkspaceFile,
@@ -30,9 +28,9 @@ export default function FilesPanel() {
     <>
       <PathPicker
         label="Solution file"
-        path={solutionPath}
+        path={slotPaths.solution}
         placeholder="C:\path\to\solution.cpp"
-        onChange={setSolutionPath}
+        onChange={(path) => assignSlot("solution", path)}
         onSubmit={(path) => loadWorkspaceFile("solution", path)}
         onBrowse={() => browseWorkspaceFile("solution")}
         onClear={() => setWorkspaceFile("solution", null)}
@@ -74,9 +72,9 @@ export default function FilesPanel() {
           <>
             <PathPicker
               label="Generator file"
-              path={generatorPath}
+              path={slotPaths.generator}
               placeholder="C:\path\to\generator.py"
-              onChange={setGeneratorPath}
+              onChange={(path) => assignSlot("generator", path)}
               onSubmit={(path) => loadWorkspaceFile("generator", path)}
               onBrowse={() => browseWorkspaceFile("generator")}
               onClear={() => setWorkspaceFile("generator", null)}

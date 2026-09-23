@@ -11,23 +11,22 @@ import type {
 import { useConsoleLogsContext } from "./ConsoleLogsContext";
 
 interface WorkspaceFilesContextValue {
+  openFiles: Map<string, WorkspaceFile>;
+  activePath: string | null;
+  setActivePath: (path: string | null) => void;
+  slotPaths: Record<WorkspaceSlot, string>;
+  assignSlot: (slot: WorkspaceSlot, path: string) => void;
   generatorFile: WorkspaceFile | null;
   solutionFile: WorkspaceFile | null;
-  generatorPath: string;
-  solutionPath: string;
-  outputPath: string;
-  activeFileSlot: WorkspaceSlot | null;
   activeFile: WorkspaceFile | null;
+  outputPath: string;
   generatorMode: GeneratorMode;
   nodes: SchemaNode[];
   setNodes: (
     value: SchemaNode[] | ((prevState: SchemaNode[]) => SchemaNode[]),
   ) => void;
   setGeneratorMode: (mode: GeneratorMode) => void;
-  setGeneratorPath: (path: string) => void;
-  setSolutionPath: (path: string) => void;
   setOutputPath: (path: string) => void;
-  setActiveFileSlot: (slot: WorkspaceSlot | null) => void;
   setWorkspaceFile: (
     slot: WorkspaceSlot,
     payload: WorkspaceFilePayload | null,

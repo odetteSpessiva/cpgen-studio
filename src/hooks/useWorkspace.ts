@@ -18,10 +18,9 @@ const STORAGE_KEY_SCHEMA = "cpgen_schema_nodes";
 const SLOTS: WorkspaceSlot[] = ["generator", "solution"];
 
 interface StoredWorkspaceState {
-  generatorPath: string;
-  solutionPath: string;
+  slotPaths: Record<WorkspaceSlot, string>;
   outputPath: string;
-  activeFileSlot: WorkspaceSlot | null;
+  activePath: string | null;
 }
 
 interface SchemaLoadPayload {
@@ -78,18 +77,17 @@ export function useWorkspaceFiles(
       console.error("Failed to parse workspace state", e);
     }
     return {
-      generatorPath: "",
-      solutionPath: "",
+      slotPaths: { generator: "", solution: "" },
       outputPath: "",
-      activeFileSlot: null,
+      activePath: null,
     };
   };
 
   const [savedState] = useState<StoredWorkspaceState>(initialWorkspaceState);
 
   const requestOwnerRef = useRef<Record<WorkspaceSlot, string>>({
-    generator: savedState.generatorPath,
-    solution: savedState.solutionPath,
+    generator: savedState.slotPaths.generator,
+    solution: savedState.slotPaths.solution,
   });
 
   const pendingSelfWriteRef = useRef<Set<string>>(new Set());
@@ -102,11 +100,12 @@ export function useWorkspaceFiles(
   const [openFiles, setOpenFiles] = useState<Map<string, WorkspaceFile>>(
     new Map(),
   );
-  const [activePath, setActivePath] = useState<string | null>(null);
-  const [slotPaths, setSlotPaths] = useState<Record<WorkspaceSlot, string>>({
-    generator: savedState.generatorPath,
-    solution: savedState.solutionPath,
-  });
+  const [activePath, setActivePath] = useState<string | null>(
+    savedState.activePath,
+  );
+  const [slotPaths, setSlotPaths] = useState<Record<WorkspaceSlot, string>>(
+    savedState.slotPaths,
+  );
 
   const [outputPath, setOutputPath] = useState(savedState.outputPath);
   const [generatorMode, setGeneratorMode] = useState<GeneratorMode>("files");
@@ -127,14 +126,6 @@ export function useWorkspaceFiles(
 
   const generatorFile = openFiles.get(slotPaths.generator) ?? null;
   const solutionFile = openFiles.get(slotPaths.solution) ?? null;
-  const generatorPath = slotPaths.generator;
-  const solutionPath = slotPaths.solution;
-  const activeFileSlot: WorkspaceSlot | null =
-    activePath !== null && activePath === slotPaths.generator
-      ? "generator"
-      : activePath !== null && activePath === slotPaths.solution
-        ? "solution"
-        : null;
   const activeFile = activePath ? (openFiles.get(activePath) ?? null) : null;
 
   const openFile = (file: WorkspaceFile) => {
@@ -240,13 +231,6 @@ export function useWorkspaceFiles(
     }
   };
 
-  const setActiveFileSlot = (slot: WorkspaceSlot | null) => {
-    setActivePath(slot ? slotPaths[slot] : null);
-  };
-
-  const setGeneratorPath = (path: string) => assignSlot("generator", path);
-  const setSolutionPath = (path: string) => assignSlot("solution", path);
-
   const setIsDirty = (path: string, isDirty: boolean) =>
     updateFileByPath(path, (file) => ({ ...file, isDirty }));
 
@@ -309,46 +293,45 @@ export function useWorkspaceFiles(
 
   useEffect(() => {
     const stateToSave: StoredWorkspaceState = {
-      generatorPath: slotPaths.generator,
-      solutionPath: slotPaths.solution,
+      slotPaths,
       outputPath,
-      activeFileSlot,
+      activePath,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [slotPaths, outputPath, activeFileSlot]);
+  }, [slotPaths, outputPath, activePath]);
 
   useEffect(() => {
     const restoreFiles = async () => {
-      if (savedState.generatorPath) {
+      if (savedState.slotPaths.generator) {
         try {
           const payload = await invoke<WorkspaceFilePayload>(
             "read_workspace_file",
             {
-              path: savedState.generatorPath,
+              path: savedState.slotPaths.generator,
             },
           );
           openFile(buildWorkspaceFile(payload));
         } catch {
           appendLog(
             "dim",
-            `Could not restore generator file: ${savedState.generatorPath}`,
+            `Could not restore generator file: ${savedState.slotPaths.generator}`,
           );
         }
       }
 
-      if (savedState.solutionPath) {
+      if (savedState.slotPaths.solution) {
         try {
           const payload = await invoke<WorkspaceFilePayload>(
             "read_workspace_file",
             {
-              path: savedState.solutionPath,
+              path: savedState.slotPaths.solution,
             },
           );
           openFile(buildWorkspaceFile(payload));
         } catch {
           appendLog(
             "dim",
-            `Could not restore solution file: ${savedState.solutionPath}`,
+            `Could not restore solution file: ${savedState.slotPaths.solution}`,
           );
         }
       }
@@ -356,7 +339,11 @@ export function useWorkspaceFiles(
 
     restoreFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedState.generatorPath, savedState.solutionPath, appendLog]);
+  }, [
+    savedState.slotPaths.generator,
+    savedState.slotPaths.solution,
+    appendLog,
+  ]);
 
   useEffect(() => {
     const unlisten = listen<string>("file-changed", async (event) => {
@@ -408,21 +395,20 @@ export function useWorkspaceFiles(
   }, [openFiles]);
 
   return {
+    openFiles,
+    activePath,
+    setActivePath,
+    slotPaths,
+    assignSlot,
     generatorFile,
     solutionFile,
-    generatorPath,
-    solutionPath,
-    outputPath,
-    activeFileSlot,
     activeFile,
+    outputPath,
     generatorMode,
     nodes,
     setNodes,
     setGeneratorMode,
-    setGeneratorPath,
-    setSolutionPath,
     setOutputPath,
-    setActiveFileSlot,
     setWorkspaceFile,
     loadWorkspaceFile,
     browseWorkspaceFile: browseWorkspacePath,
