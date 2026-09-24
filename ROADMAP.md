@@ -33,6 +33,8 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] **Settings page**: global configuration for application behavior, compiler flags, and other configurable defaults
 - [x] Replace pylsp path setting with py env path because my dumbass forgot it was a python module, not an executable
 - [x] Format on save
+- [ ] Redesign schema editor
+- [ ] Color code items in schema toolbar
 
 ## Subtasks (1.0)
 
