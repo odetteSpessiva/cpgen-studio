@@ -516,10 +516,7 @@ describe("useMonacoEditor", () => {
     });
 
     it("returns false and does not throw if saveActiveFile rejects", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
+      const appendLog = vi.fn();
       const saveActiveFile = vi.fn().mockRejectedValue(new Error("disk full"));
       const activeFile = makeActiveFile();
       const model = createMockModel(activeFile.value);
@@ -528,6 +525,7 @@ describe("useMonacoEditor", () => {
       const { result } = renderHook(() =>
         useMonacoEditor({
           activeFile,
+          appendLog,
           handleCodeChange: vi.fn(),
           saveActiveFile,
           setIsDirty: vi.fn(),
@@ -544,11 +542,10 @@ describe("useMonacoEditor", () => {
       });
 
       expect(success).toBe(false);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to save active file:",
-        expect.objectContaining({ message: "disk full" }),
+      expect(appendLog).toHaveBeenCalledWith(
+        "error",
+        "Failed to save active file: Error: disk full",
       );
-      consoleErrorSpy.mockRestore();
     });
   });
 

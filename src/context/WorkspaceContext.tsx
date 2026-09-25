@@ -16,6 +16,9 @@ interface WorkspaceFilesContextValue {
   setActivePath: (path: string | null) => void;
   slotPaths: Record<WorkspaceSlot, string>;
   assignSlot: (slot: WorkspaceSlot, path: string) => void;
+  tabOrder: string[];
+  closeTab: (path: string) => void;
+  reorderTabs: (fromPath: string, toPath: string) => void;
   generatorFile: WorkspaceFile | null;
   solutionFile: WorkspaceFile | null;
   activeFile: WorkspaceFile | null;
@@ -31,6 +34,7 @@ interface WorkspaceFilesContextValue {
     slot: WorkspaceSlot,
     payload: WorkspaceFilePayload | null,
   ) => void;
+  openFileDialog: () => Promise<void>;
   loadWorkspaceFile: (slot: WorkspaceSlot, path: string) => Promise<void>;
   browseWorkspaceFile: (slot: WorkspaceSlot) => Promise<void>;
   browseDirectory: (setter: (path: string) => void) => Promise<void>;

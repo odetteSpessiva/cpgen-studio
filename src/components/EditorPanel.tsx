@@ -1,11 +1,12 @@
 import Editor from "@monaco-editor/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useConsoleLogsContext } from "../context/ConsoleLogsContext";
 import { usePipelineContext } from "../context/PipelineContext";
 import { useSettingsContext } from "../context/SettingsContext";
 import { useWorkspaceContext } from "../context/WorkspaceContext";
 import { useMonacoEditor } from "../hooks/useMonacoEditor";
 import SchemaPreviewPanel from "./schema/SchemaPreviewPanel";
+import TabBar, { PinnedTab } from "./TabBar";
 
 const EDITOR_OPTIONS = {
   mouseWheelZoom: true,
@@ -24,13 +25,6 @@ const EDITOR_OPTIONS = {
   fixedOverflowWidgets: true,
 };
 
-const TAB_CLASS =
-  "flex items-center min-w-0 max-w-[200px] px-3.5 border-0 border-b-2 text-[13px] overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
-const TAB_INACTIVE_CLASS =
-  "border-transparent text-(--text-muted) hover:text-(--text-primary) hover:bg-(--bg-tertiary)";
-const TAB_ACTIVE_CLASS =
-  "border-(--accent) text-(--text-primary) bg-(--bg-primary)";
-
 export default function EditorPanel() {
   const {
     generatorFile,
@@ -39,11 +33,16 @@ export default function EditorPanel() {
     activePath,
     slotPaths,
     setActivePath,
+    tabOrder,
+    closeTab,
+    reorderTabs,
+    openFiles,
     handleCodeChange,
     saveActiveFile,
     setIsDirty,
     generatorMode,
     nodes,
+    openFileDialog,
   } = useWorkspaceContext();
 
   const { appendLog } = useConsoleLogsContext();
@@ -52,6 +51,7 @@ export default function EditorPanel() {
 
   const { handleEditorMount } = useMonacoEditor({
     activeFile,
+    appendLog,
     formatOnSave,
     handleCodeChange,
     saveActiveFile,
@@ -60,6 +60,18 @@ export default function EditorPanel() {
 
   const [previewExample, setPreviewExample] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isOpenShortcut =
+        (event.ctrlKey || event.metaKey) && event.key === "o";
+      if (!isOpenShortcut) return;
+      event.preventDefault();
+      openFileDialog();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openFileDialog]);
+
   const isGeneratorActive =
     activePath !== null && activePath === slotPaths.generator;
   const isSolutionActive =
@@ -67,34 +79,49 @@ export default function EditorPanel() {
 
   const showSchemaPreview = generatorMode === "visual" && isGeneratorActive;
 
-  const generatorTabDisabled = generatorMode === "files" && !generatorFile;
+  const showGeneratorTab = generatorMode === "visual" || !!generatorFile;
+  const showSolutionTab = !!solutionFile;
+
+  const pinnedPaths = new Set(
+    [slotPaths.generator, slotPaths.solution].filter(Boolean),
+  );
 
   return (
     <section className="h-full min-w-0 min-h-0 flex flex-col overflow-hidden bg-(--bg-primary)">
-      <div className="h-9.5 shrink-0 flex items-stretch gap-0.5 bg-(--bg-secondary) border-b border-(--border) px-2">
-        <button
-          type="button"
-          className={`${TAB_CLASS} ${isGeneratorActive ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS}`}
-          onClick={() => setActivePath(slotPaths.generator)}
-          disabled={generatorTabDisabled}
-        >
-          {generatorMode === "visual"
-            ? "Generator (Schema)"
-            : (generatorFile?.name ?? "Generator")}
-          {generatorMode === "files" && generatorFile?.isDirty && (
-            <span className="ml-1.5">●</span>
-          )}
-        </button>
+      <div className="h-9.5 shrink-0 flex items-stretch gap-0.5 bg-(--bg-secondary) border-b border-(--border) px-2 overflow-x-auto">
+        {showGeneratorTab && (
+          <PinnedTab
+            label={
+              generatorMode === "visual"
+                ? "Generator (Schema)"
+                : (generatorFile?.name ?? "Generator")
+            }
+            isActive={isGeneratorActive}
+            isDirty={generatorMode === "files" && !!generatorFile?.isDirty}
+            disabled={false}
+            onClick={() => setActivePath(slotPaths.generator)}
+          />
+        )}
 
-        <button
-          type="button"
-          className={`${TAB_CLASS} ${isSolutionActive ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS}`}
-          onClick={() => setActivePath(slotPaths.solution)}
-          disabled={!solutionFile}
-        >
-          {solutionFile?.name ?? "Solution"}
-          {solutionFile?.isDirty && <span className="ml-1.5">●</span>}
-        </button>
+        {showSolutionTab && (
+          <PinnedTab
+            label={solutionFile?.name ?? "Solution"}
+            isActive={isSolutionActive}
+            isDirty={!!solutionFile?.isDirty}
+            disabled={false}
+            onClick={() => setActivePath(slotPaths.solution)}
+          />
+        )}
+
+        <TabBar
+          tabOrder={tabOrder}
+          openFiles={openFiles}
+          activePath={activePath}
+          onSelect={setActivePath}
+          onClose={closeTab}
+          onReorder={reorderTabs}
+          pinnedPaths={pinnedPaths}
+        />
 
         <span className="flex-1" />
         {activeFile && !showSchemaPreview && (

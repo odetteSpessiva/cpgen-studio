@@ -209,22 +209,31 @@ export async function getOrStartLSP(
   rootUri: string,
 ): Promise<MessageConnection> {
   let ref = connectionCache.get(language);
-  if (!ref || ref.invalidated) {
+  if (ref && !ref.invalidated) return ref.current;
+
+  const newPromise = startLSP(language, rootUri);
+  const shouldRegisterProviders = !ref;
+  if (ref) {
+    ref.current = newPromise;
+    ref.invalidated = false;
+  } else {
+    ref = { current: newPromise, invalidated: false };
+    connectionCache.set(language, ref);
+  }
+
+  try {
     const monaco = await getMonaco();
-    const newPromise = startLSP(language, rootUri);
-    if (!ref) {
-      ref = { current: newPromise, invalidated: false };
-      connectionCache.set(language, ref);
+    if (shouldRegisterProviders && !ref.invalidated) {
       registerHover(monaco, ref, language);
       registerCompletion(monaco, ref, language);
       registerFormatting(monaco, ref, language);
-    } else {
-      ref.current = newPromise;
-      ref.invalidated = false;
     }
     ref.current.then((connection) =>
       registerDiagnostics(monaco, connection, language),
     );
+  } catch (error) {
+    connectionCache.delete(language);
+    throw error;
   }
   return ref.current;
 }

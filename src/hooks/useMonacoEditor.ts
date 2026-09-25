@@ -3,7 +3,7 @@ import { dirname } from "@tauri-apps/api/path";
 import type { editor, IDisposable, Selection } from "monaco-editor";
 import { useCallback, useEffect, useInsertionEffect, useRef } from "react";
 import { getOrStartLSP } from "../lsp/monacoIntegration";
-import type { WorkspaceFile } from "../types";
+import type { LogLevel, WorkspaceFile } from "../types";
 
 type TrackedModel = editor.ITextModel & {
   _savedVersionId?: number;
@@ -12,6 +12,7 @@ type TrackedModel = editor.ITextModel & {
 
 interface UseMonacoEditorOptions {
   activeFile: WorkspaceFile | null;
+  appendLog?: (level: LogLevel, message: string) => void;
   formatOnSave?: boolean;
   handleCodeChange: (path: string, newValue: string) => void;
   saveActiveFile: (contentOverride?: string) => Promise<boolean>;
@@ -75,6 +76,7 @@ function cleanCode(model: TrackedModel, selections: Selection[] | null) {
 
 export function useMonacoEditor({
   activeFile,
+  appendLog = () => {},
   formatOnSave = false,
   handleCodeChange,
   saveActiveFile,
@@ -85,6 +87,7 @@ export function useMonacoEditor({
   const saveRef = useLatest(saveActiveFile);
   const setIsDirtyRef = useLatest(setIsDirty);
   const activeFileRef = useLatest(activeFile);
+  const appendLogRef = useLatest(appendLog);
   const formatOnSaveRef = useLatest(formatOnSave);
   const modelRef = useRef<TrackedModel | null>(null);
   const editorRef = useRef<editor.ICodeEditor | null>(null);
@@ -149,6 +152,8 @@ export function useMonacoEditor({
       hasPendingEditRef.current =
         cleanCode(currentModel, editorRef.current?.getSelections() ?? null) ||
         hasPendingEditRef.current;
+    } catch (err) {
+      appendLogRef.current("error", `[formatter] failed: ${String(err)}`);
     } finally {
       isProgrammaticUpdateRef.current = false;
     }
@@ -171,7 +176,10 @@ export function useMonacoEditor({
       }
       return success;
     } catch (err) {
-      console.error("Failed to save active file:", err);
+      appendLogRef.current(
+        "error",
+        `Failed to save active file: ${String(err)}`,
+      );
       return false;
     }
   }, [flush, formatOnSaveRef, saveRef, setIsDirtyRef]);
@@ -209,7 +217,7 @@ export function useMonacoEditor({
             },
           });
         })().catch((err) => {
-          console.error("[lsp] failed:", err);
+          appendLogRef.current("error", `[lsp] failed: ${String(err)}`);
         });
       }
 

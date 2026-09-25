@@ -160,6 +160,24 @@ describe("startLSP", () => {
 });
 
 describe("getOrStartLSP", () => {
+  it("shares the initialization promise across concurrent starts", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    vi.mocked(getMonaco).mockResolvedValue(createFakeMonaco() as never);
+    const fakeConnection = createFakeConnection();
+    vi.mocked(createMessageConnection).mockReturnValue(
+      fakeConnection as unknown as MessageConnection,
+    );
+
+    const connections = await Promise.all([
+      getOrStartLSP("concurrent-lang", "file:///workspace/a"),
+      getOrStartLSP("concurrent-lang", "file:///workspace/b"),
+    ]);
+
+    expect(connections[0]).toBe(fakeConnection);
+    expect(connections[1]).toBe(fakeConnection);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses the cached connection instead of starting a second one", async () => {
     vi.mocked(invoke).mockResolvedValue(null);
     const fakeMonaco = createFakeMonaco();

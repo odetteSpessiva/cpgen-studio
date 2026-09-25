@@ -19,6 +19,8 @@ const SLOTS: WorkspaceSlot[] = ["generator", "solution"];
 
 interface StoredWorkspaceState {
   slotPaths: Record<WorkspaceSlot, string>;
+  openFiles: Map<string, WorkspaceFile>;
+  tabOrder: string[];
   outputPath: string;
   activePath: string | null;
 }
@@ -72,12 +74,33 @@ export function useWorkspaceFiles(
   const initialWorkspaceState = (): StoredWorkspaceState => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<
+          Omit<StoredWorkspaceState, "openFiles">
+        > & {
+          openFiles?:
+            Array<[string, WorkspaceFile]> | Record<string, WorkspaceFile>;
+        };
+        const persistedFiles = parsed.openFiles ?? [];
+        const openFiles = Array.isArray(persistedFiles)
+          ? new Map(persistedFiles)
+          : new Map(Object.entries(persistedFiles));
+
+        return {
+          slotPaths: parsed.slotPaths ?? { generator: "", solution: "" },
+          openFiles,
+          tabOrder: parsed.tabOrder ?? [],
+          outputPath: parsed.outputPath ?? "",
+          activePath: parsed.activePath ?? null,
+        };
+      }
     } catch (e) {
       console.error("Failed to parse workspace state", e);
     }
     return {
       slotPaths: { generator: "", solution: "" },
+      openFiles: new Map(),
+      tabOrder: [],
       outputPath: "",
       activePath: null,
     };
@@ -98,7 +121,7 @@ export function useWorkspaceFiles(
   }
 
   const [openFiles, setOpenFiles] = useState<Map<string, WorkspaceFile>>(
-    new Map(),
+    savedState.openFiles,
   );
   const [activePath, setActivePath] = useState<string | null>(
     savedState.activePath,
@@ -106,6 +129,8 @@ export function useWorkspaceFiles(
   const [slotPaths, setSlotPaths] = useState<Record<WorkspaceSlot, string>>(
     savedState.slotPaths,
   );
+
+  const [tabOrder, setTabOrder] = useState<string[]>(savedState.tabOrder);
 
   const [outputPath, setOutputPath] = useState(savedState.outputPath);
   const [generatorMode, setGeneratorMode] = useState<GeneratorMode>("files");
@@ -134,6 +159,9 @@ export function useWorkspaceFiles(
       next.set(file.path, file);
       return next;
     });
+    setTabOrder((prev) =>
+      prev.includes(file.path) ? prev : [...prev, file.path],
+    );
   };
 
   const closeFileIfUnreferenced = (
@@ -148,6 +176,7 @@ export function useWorkspaceFiles(
         next.delete(path);
         return next;
       });
+      setTabOrder((prev) => prev.filter((p) => p !== path));
     }
   };
 
@@ -168,6 +197,40 @@ export function useWorkspaceFiles(
     });
   };
 
+  const closeTab = (path: string) => {
+    if (SLOTS.some((s) => slotPaths[s] === path)) return;
+
+    const index = tabOrder.indexOf(path);
+    if (index === -1) return;
+
+    if (activePath === path) {
+      const nextActive = tabOrder[index + 1] ?? tabOrder[index - 1] ?? null;
+      setActivePath(nextActive);
+    }
+
+    setTabOrder((prev) => prev.filter((p) => p !== path));
+    setOpenFiles((prev) => {
+      if (!prev.has(path)) return prev;
+      const next = new Map(prev);
+      next.delete(path);
+      return next;
+    });
+  };
+
+  const reorderTabs = (fromPath: string, toPath: string) => {
+    setTabOrder((prev) => {
+      const fromIndex = prev.indexOf(fromPath);
+      const toIndex = prev.indexOf(toPath);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex)
+        return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
   const setWorkspaceFile = (
     slot: WorkspaceSlot,
     payload: WorkspaceFilePayload | null,
@@ -184,6 +247,21 @@ export function useWorkspaceFiles(
     openFile(nextFile);
     assignSlot(slot, nextFile.path);
     setActivePath(nextFile.path);
+  };
+
+  const openFileDialog = async () => {
+    try {
+      const payload = await invoke<WorkspaceFilePayload | null>(
+        "pick_workspace_file",
+      );
+      if (!payload) return;
+
+      const nextFile = buildWorkspaceFile(payload);
+      openFile(nextFile);
+      setActivePath(nextFile.path);
+    } catch (error) {
+      appendLog("error", `File picker failed: ${String(error)}`);
+    }
   };
 
   const loadWorkspaceFile = async (slot: WorkspaceSlot, path: string) => {
@@ -294,11 +372,16 @@ export function useWorkspaceFiles(
   useEffect(() => {
     const stateToSave: StoredWorkspaceState = {
       slotPaths,
+      openFiles,
+      tabOrder,
       outputPath,
       activePath,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [slotPaths, outputPath, activePath]);
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...stateToSave, openFiles: [...openFiles.entries()] }),
+    );
+  }, [slotPaths, openFiles, tabOrder, outputPath, activePath]);
 
   useEffect(() => {
     const restoreFiles = async () => {
@@ -400,6 +483,9 @@ export function useWorkspaceFiles(
     setActivePath,
     slotPaths,
     assignSlot,
+    tabOrder,
+    closeTab,
+    reorderTabs,
     generatorFile,
     solutionFile,
     activeFile,
@@ -410,6 +496,7 @@ export function useWorkspaceFiles(
     setGeneratorMode,
     setOutputPath,
     setWorkspaceFile,
+    openFileDialog,
     loadWorkspaceFile,
     browseWorkspaceFile: browseWorkspacePath,
     browseDirectory,
