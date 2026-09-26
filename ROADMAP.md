@@ -35,6 +35,8 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] Format on save
 - [ ] Redesign schema editor
 - [ ] Color code items in schema toolbar
+- [ ] Browsable file list/tree in the sidebar (arbitrary file open currently requires Ctrl+O with no way to browse)
+- [ ] Context menu on open tabs, including "Set as generator" / "Set as solution" for non-pinned tabs (promote an arbitrary open file into a pipeline slot without going through FilesPanel's path pickers)
 
 ## Subtasks (1.0)
 
