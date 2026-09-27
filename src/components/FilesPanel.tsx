@@ -1,3 +1,5 @@
+import { SquareArrowRightExit } from "lucide-react";
+import { usePipelineContext } from "../context/PipelineContext";
 import { useWorkspaceContext } from "../context/WorkspaceContext";
 import type { GeneratorMode } from "../types";
 import ParametersForm from "./ParametersForm";
@@ -21,7 +23,11 @@ export default function FilesPanel() {
     browseWorkspaceFile,
     browseDirectory,
     setWorkspaceFile,
+    exportTests,
+    isExporting,
   } = useWorkspaceContext();
+
+  const { config } = usePipelineContext();
 
   // Shared by both tabs, so it's built once instead of duplicated per-branch.
   const solutionAndOutputPickers = (
@@ -45,6 +51,16 @@ export default function FilesPanel() {
         onBrowse={() => browseDirectory(setOutputPath)}
         onClear={() => setOutputPath("")}
       />
+      <button
+        type="button"
+        className="h-8.5 w-full px-3 shrink-0 rounded-md border border-(--border) bg-(--surface) text-[15px] text-(--text-primary) \
+             cursor-pointer hover:bg-(--accent)/10 hover:border-(--accent) inline-flex items-center gap-1.5 justify-center disabled:opacity-50 disabled:cursor-wait transition-colors"
+        onClick={() => exportTests(config.problemName)}
+        disabled={isExporting}
+      >
+        <SquareArrowRightExit size={14} strokeWidth={2} className="shrink-0" />
+        Export content as zip
+      </button>
     </>
   );
 

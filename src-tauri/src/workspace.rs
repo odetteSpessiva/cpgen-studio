@@ -1,7 +1,13 @@
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    io::copy,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
+use walkdir::WalkDir;
+use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 #[derive(Serialize)]
 pub(crate) struct WorkspaceFilePayload {
@@ -47,6 +53,78 @@ fn build_workspace_file(path: PathBuf) -> Result<WorkspaceFilePayload, String> {
         language: infer_language(&path),
         value,
     })
+}
+
+fn zip_directory(src: &Path, dest: &Path) -> Result<(), String> {
+    if !src.exists() {
+        return Err("Directory does not exist".to_string());
+    }
+    let src_canonical = src.canonicalize().map_err(|e| e.to_string())?;
+
+    if let Some(parent) = dest.parent() {
+        if !parent.as_os_str().is_empty() {
+            let _ = fs::create_dir_all(parent);
+        }
+    }
+
+    let dest_parent = dest.parent().filter(|p| !p.as_os_str().is_empty());
+    if let Some(parent) = dest_parent {
+        let parent_canonical = parent.canonicalize().map_err(|e| e.to_string())?;
+        if parent_canonical.starts_with(&src_canonical) {
+            return Err("Destination inside source".to_string());
+        }
+    }
+
+    let file = fs::File::create(dest).map_err(|e| e.to_string())?;
+
+    let dir_options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+    let file_options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+
+    let walker = WalkDir::new(src);
+    let iter = walker.into_iter().filter_map(|e| e.ok());
+    let mut zip = ZipWriter::new(file);
+
+    for entry in iter {
+        let path = entry.path();
+        let relative_path = match path.strip_prefix(src) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        if relative_path.as_os_str().is_empty() {
+            continue;
+        }
+
+        let name = relative_path
+            .components()
+            .map(|c| c.as_os_str().to_str())
+            .collect::<Option<Vec<_>>>()
+            .map(|parts| parts.join("/"));
+
+        let name = match name {
+            Some(p) => p,
+            None => continue,
+        };
+
+        if path.is_dir() {
+            let _ = zip.add_directory(&name, dir_options);
+        } else if path.is_file() {
+            let mut f = match fs::File::open(path) {
+                Ok(file) => file,
+                Err(_) => continue,
+            };
+            if zip.start_file(&name, file_options).is_ok() {
+                copy(&mut f, &mut zip).map_err(|e| format!("Failed reading file: {e}"))?;
+            }
+        }
+    }
+
+    zip.finish()
+        .map_err(|e| format!("Unable to finish zip archive: {e}"))?;
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -128,7 +206,33 @@ pub(crate) fn load_schema_file(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
+pub(crate) fn export_tests(
+    tests_dir: String,
+    test_name: String,
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<(), String> {
+    match app
+        .dialog()
+        .file()
+        .set_file_name(format!("{test_name}.zip"))
+        .add_filter("zip", &["zip"])
+        .set_parent(&window)
+        .blocking_save_file()
+    {
+        Some(path) => zip_directory(
+            &PathBuf::from(tests_dir),
+            &path
+                .into_path()
+                .map_err(|e| format!("Failed to resolve path: {e}"))?,
+        )
+        .map_err(|e| format!("Unable to export tests: {e}")),
+        None => Ok(()),
+    }
+}
+
+#[tauri::command(async)]
 pub(crate) fn pick_directory(
     app: AppHandle,
     window: WebviewWindow,

@@ -43,6 +43,8 @@ interface WorkspaceFilesContextValue {
   setIsDirty: (path: string, isDirty: boolean) => void;
   handleSaveSchema: () => void;
   handleLoadSchema: () => void;
+  exportTests: (testName: string) => void;
+  isExporting: boolean;
 }
 
 const WorkspaceFilesContext = createContext<WorkspaceFilesContextValue | null>(

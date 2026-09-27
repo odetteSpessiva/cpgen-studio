@@ -37,6 +37,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [ ] Color code items in schema toolbar
 - [ ] Browsable file list/tree in the sidebar (arbitrary file open currently requires Ctrl+O with no way to browse)
 - [ ] Context menu on open tabs, including "Set as generator" / "Set as solution" for non-pinned tabs (promote an arbitrary open file into a pipeline slot without going through FilesPanel's path pickers)
+- [ ] Allow unamed files / creating file instead of only opening them
 
 ## Subtasks (1.0)
 
@@ -54,7 +55,7 @@ All other items below are being implemented in the lead-up to `1.0`.
 - [x] In app method to download mingw
 - [ ] Output format for strings
 - [ ] Support other languages
-- [ ] Single click export to zip
+- [x] Single click export to zip
 - [ ] Add premature termination for test generation
 
 ---

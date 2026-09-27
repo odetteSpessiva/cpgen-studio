@@ -674,6 +674,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tokio",
  "unescaper",
+ "walkdir",
  "winnow 1.0.4",
  "zip",
 ]

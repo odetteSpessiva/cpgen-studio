@@ -19,8 +19,8 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_window_state::StateFlags;
 use watcher::{unwatch_file, watch_file, WatcherState};
 use workspace::{
-    load_schema_file, pick_directory, pick_workspace_file, read_workspace_file, save_file,
-    save_workspace_file,
+    export_tests, load_schema_file, pick_directory, pick_workspace_file, read_workspace_file,
+    save_file, save_workspace_file,
 };
 
 #[tauri::command]
@@ -57,6 +57,7 @@ pub fn run() {
             save_workspace_file,
             save_file,
             load_schema_file,
+            export_tests,
             watch_file,
             unwatch_file,
             lsp_start,

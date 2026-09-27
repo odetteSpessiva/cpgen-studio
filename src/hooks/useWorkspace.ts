@@ -105,6 +105,8 @@ export function useWorkspaceFiles(
       activePath: null,
     };
   };
+  const [isExporting, setIsExporting] = useState(false);
+  const isExportingRef = useRef(false);
 
   const [savedState] = useState<StoredWorkspaceState>(initialWorkspaceState);
 
@@ -144,6 +146,20 @@ export function useWorkspaceFiles(
     }
     return DEFAULT_NODES;
   });
+
+  const exportTests = async (testName: string) => {
+    if (isExportingRef.current) return;
+    isExportingRef.current = true;
+    setIsExporting(true);
+    try {
+      await invoke("export_tests", { testsDir: outputPath, testName });
+    } catch (err) {
+      appendLog("error", typeof err === "string" ? err : String(err));
+    } finally {
+      isExportingRef.current = false;
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_SCHEMA, JSON.stringify(nodes));
@@ -505,5 +521,7 @@ export function useWorkspaceFiles(
     setIsDirty,
     handleSaveSchema,
     handleLoadSchema,
+    exportTests,
+    isExporting,
   };
 }
