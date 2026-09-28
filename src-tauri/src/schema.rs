@@ -3,7 +3,11 @@ use crate::expr;
 use crate::format as numeric_formatter;
 use rand::{rngs::StdRng, Rng, RngExt, SeedableRng};
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{mpsc, Arc},
+    time,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -384,18 +388,26 @@ impl Interpreter {
     }
 }
 
-pub fn generate(nodes: &[SchemaNode], seed: Option<u64>) -> Result<String, String> {
-    let rng: Box<dyn Rng> = match seed {
-        Some(s) => Box::new(StdRng::seed_from_u64(s)),
-        None => Box::new(rand::rng()),
-    };
-    let mut interp = Interpreter {
-        rng,
-        vars: HashMap::new(),
-    };
-    let mut lines = Vec::new();
-    interp.eval_nodes(nodes, &mut lines)?;
-    Ok(lines.join(""))
+pub fn generate(nodes: Arc<[SchemaNode]>, seed: Option<u64>) -> Result<String, String> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let rng: Box<dyn Rng> = match seed {
+            Some(s) => Box::new(StdRng::seed_from_u64(s)),
+            None => Box::new(rand::rng()),
+        };
+        let mut interp = Interpreter {
+            rng,
+            vars: HashMap::new(),
+        };
+        let mut lines = Vec::new();
+        let _ = tx.send(
+            interp
+                .eval_nodes(&nodes, &mut lines)
+                .map(|_| lines.join("")),
+        );
+    });
+    rx.recv_timeout(time::Duration::from_secs(10))
+        .map_err(|_| "generation timed out".to_string())?
 }
 
 #[cfg(test)]
@@ -1105,7 +1117,7 @@ mod tests {
                 output_format: None,
             },
         ];
-        let result = generate(&nodes, Some(42)).unwrap();
+        let result = generate(nodes.into(), Some(42)).unwrap();
         assert_eq!(result, "1\n2\n");
     }
 
@@ -1117,8 +1129,8 @@ mod tests {
             charset: Charset::Alphanumeric,
             custom_charset: None,
         }];
-        let a = generate(&nodes, Some(123)).unwrap();
-        let b = generate(&nodes, Some(123)).unwrap();
+        let a = generate(nodes.clone().into(), Some(123)).unwrap();
+        let b = generate(nodes.into(), Some(123)).unwrap();
         assert_eq!(a, b);
     }
 
@@ -1130,7 +1142,7 @@ mod tests {
             max: "10".to_string(),
             output_format: None,
         }];
-        let result = generate(&nodes, None).unwrap();
+        let result = generate(nodes.into(), None).unwrap();
         let v: i64 = result.trim().parse().unwrap();
         assert!((1..=10).contains(&v));
     }
@@ -1143,14 +1155,45 @@ mod tests {
             max: "1".to_string(),
             output_format: None,
         }];
-        let err = generate(&nodes, Some(1)).unwrap_err();
+        let err = generate(nodes.into(), Some(1)).unwrap_err();
         assert!(err.contains("greater than max"));
     }
 
     #[test]
     fn generate_empty_nodes_produces_empty_string() {
         let nodes: Vec<SchemaNode> = vec![];
-        let result = generate(&nodes, Some(1)).unwrap();
+        let result = generate(nodes.into(), Some(1)).unwrap();
         assert_eq!(result, "");
+    }
+
+    // Timeout
+    #[test]
+    fn generate_times_out() {
+        let nodes = vec![SchemaNode::Loop {
+            count: "1000000000".to_string(),
+            children: vec![SchemaNode::Int {
+                var_name: None,
+                min: "5".to_string(),
+                max: "1".to_string(),
+                output_format: None,
+            }],
+        }];
+        let start = time::Instant::now();
+
+        let result = generate(nodes.into(), Some(1));
+
+        assert_eq!(result, Err("generation timed out".to_string()));
+        assert!(start.elapsed() < time::Duration::from_secs(15));
+    }
+
+    #[test]
+    fn generate_completes_normally() {
+        let nodes = vec![SchemaNode::Int {
+            var_name: None,
+            min: "10".to_string(),
+            max: "1".to_string(),
+            output_format: None,
+        }];
+        assert!(generate(nodes.into(), Some(1)).is_ok());
     }
 }

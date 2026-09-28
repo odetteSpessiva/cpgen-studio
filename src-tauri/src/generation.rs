@@ -179,8 +179,11 @@ pub(crate) async fn generate_tests_from_schema(
                 "generate_input",
                 format!("Generating test #{id} from schema").as_str(),
             );
-            let test = schema::generate(&schema, seed.map(|value| value.wrapping_add(i as u64)))
-                .map_err(|e| format!("Schema interpretation failed: {e}"))?;
+            let test = schema::generate(
+                schema.into(),
+                seed.map(|value| value.wrapping_add(i as u64)),
+            )
+            .map_err(|e| format!("Schema interpretation failed: {e}"))?;
             let result = run_optional(&sol_command, Duration::from_secs(10), Some(&test)).await?;
             write_test(&output_path, &test_name, id, &test, result).await
         });
@@ -206,7 +209,7 @@ pub(crate) fn preview_schema(
     schema: Vec<schema::SchemaNode>,
     seed: Option<u64>,
 ) -> Result<String, String> {
-    schema::generate(&schema, seed)
+    schema::generate(schema.into(), seed)
 }
 
 #[cfg(test)]
