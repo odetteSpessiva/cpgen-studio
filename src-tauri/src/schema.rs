@@ -1173,8 +1173,8 @@ mod tests {
             count: "1000000000".to_string(),
             children: vec![SchemaNode::Int {
                 var_name: None,
-                min: "5".to_string(),
-                max: "1".to_string(),
+                min: "1".to_string(),
+                max: "5".to_string(),
                 output_format: None,
             }],
         }];
@@ -1190,8 +1190,8 @@ mod tests {
     fn generate_completes_normally() {
         let nodes = vec![SchemaNode::Int {
             var_name: None,
-            min: "10".to_string(),
-            max: "1".to_string(),
+            min: "1".to_string(),
+            max: "10".to_string(),
             output_format: None,
         }];
         assert!(generate(nodes.into(), Some(1)).is_ok());
