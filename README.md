@@ -1,4 +1,10 @@
-# CPGen Studio
+<p align="center">
+	<img src="./src-tauri/icons/icon.png" alt="CPGen Studio icon" width="128">
+</p>
+
+<h1 align="center">CPGen Studio</h1>
+
+<p align="center">Build test case generation schemas visually for competitive programming problems.</p>
 
 A desktop app for building test case generation schemas for competitive programming problems, built with Tauri.
 
@@ -7,6 +13,20 @@ A desktop app for building test case generation schemas for competitive programm
 ## What it does
 
 CPGen Studio lets you visually build a schema of blocks that define how test cases are generated, then run that schema against a solution to produce test files. It's built for problem setters who want a faster, more visual alternative to hand-writing generator scripts.
+
+## Screenshots
+
+### Editor
+
+![CPGen Studio editor](./.github/assets/editor.png)
+
+### Visual schema builder
+
+![CPGen Studio visual schema builder](./.github/assets/schema-editor.png)
+
+### Settings
+
+![CPGen Studio settings](./.github/assets/settings.png)
 
 > **Notes**
 >
