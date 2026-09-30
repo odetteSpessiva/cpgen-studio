@@ -209,6 +209,13 @@ pub(crate) fn preview_schema(
     schema: Vec<schema::SchemaNode>,
     seed: Option<u64>,
 ) -> Result<String, String> {
+    validate::validate(&schema).map_err(|errors| {
+        errors
+            .iter()
+            .map(|error| error.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
     schema::generate(schema.into(), seed)
 }
 

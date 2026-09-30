@@ -11,6 +11,21 @@ impl std::fmt::Display for ValidationError {
     }
 }
 
+pub fn is_valid_var_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+
+    let mut chars = name.chars();
+    let first = chars.next().unwrap();
+
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return false;
+    }
+
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 pub fn validate(nodes: &[SchemaNode]) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
     validate_nodes(nodes, "root", &mut errors);
@@ -39,13 +54,16 @@ fn validate_node(node: &SchemaNode, path: &str, errors: &mut Vec<ValidationError
             output_format,
             ..
         } => {
+            validate_var_name(var_name, path, errors);
             validate_output_format(var_name, output_format, path, errors);
         }
         SchemaNode::String {
+            var_name,
             charset,
             custom_charset,
             ..
         } => {
+            validate_var_name(var_name, path, errors);
             validate_charset(charset, custom_charset, path, errors);
         }
         SchemaNode::Array { element, .. } => {
@@ -61,6 +79,17 @@ fn validate_node(node: &SchemaNode, path: &str, errors: &mut Vec<ValidationError
         } => {
             validate_nodes(if_children, &format!("{path}.ifChildren"), errors);
             validate_nodes(else_children, &format!("{path}.elseChildren"), errors);
+        }
+    }
+}
+
+fn validate_var_name(var_name: &Option<String>, path: &str, errors: &mut Vec<ValidationError>) {
+    if let Some(name) = var_name {
+        if !name.is_empty() && !is_valid_var_name(name) {
+            errors.push(ValidationError {
+                path: path.to_string(),
+                message: format!("invalid variable name '{name}'"),
+            });
         }
     }
 }
@@ -159,6 +188,21 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].path, "root[0]");
         assert!(errors[0].message.contains("varName is empty"));
+    }
+
+    #[test]
+    fn reports_invalid_variable_name() {
+        let nodes = vec![SchemaNode::Int {
+            var_name: Some("123bad_var".to_string()),
+            min: "1".to_string(),
+            max: "10".to_string(),
+            output_format: None,
+        }];
+
+        let errors = validate(&nodes).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].path, "root[0]");
+        assert!(errors[0].message.contains("invalid variable name"));
     }
 
     #[test]
