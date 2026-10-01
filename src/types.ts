@@ -20,7 +20,11 @@ export type SettingKey =
   | "gppPath"
   | "compilerArgs"
   | "pythonPath"
-  | "clangdPath";
+  | "clangdPath"
+  | "aiProvider"
+  | "aiBaseUrl";
+
+export type AIProvider = "openai" | "google" | "anthropic";
 
 export type WorkspaceSlot = "generator" | "solution";
 

@@ -38,3 +38,4 @@ sha2 = "0.11.0"
 hex = "0.4.3"
 zip = "8.6.0"
 walkdir = "2.5"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }

@@ -1,3 +1,4 @@
+mod ai;
 mod cmp_expr;
 mod expr;
 mod format;
@@ -10,6 +11,7 @@ mod validate;
 mod watcher;
 mod workspace;
 
+use ai::{delete_key, has_key, save_key};
 use generation::{generate_tests, generate_tests_from_schema, preview_schema};
 use lsp::{lsp_kill, lsp_send, lsp_start, GppTripleState, LspState};
 use mingw_installer::{cancel_mingw, check_compiler, download_mingw, DownloadState};
@@ -65,7 +67,10 @@ pub fn run() {
             lsp_kill,
             download_mingw,
             cancel_mingw,
-            check_compiler
+            check_compiler,
+            save_key,
+            has_key,
+            delete_key
         ])
         .setup(|app| {
             let version = app.package_info().version.to_string();

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
+import { useAIContext } from "../context/AIContext";
 import { useSettingsContext } from "../context/SettingsContext";
 import type { SettingKey } from "../types";
 import MingwDownloadModal from "./MingwDownloadModal";
@@ -24,6 +25,24 @@ const FONT_OPTIONS = [
   {
     label: "System Monospace",
     value: "ui-monospace, Menlo, Consolas, monospace",
+  },
+];
+
+const AI_PROVIDERS = [
+  {
+    label: "OpenAI",
+    value: "openai",
+    baseUrl: "https://api.openai.com/v1",
+  },
+  {
+    label: "Google",
+    value: "google",
+    baseUrl: "https://generativelanguage.googleapis.com",
+  },
+  {
+    label: "Anthropic",
+    value: "anthropic",
+    baseUrl: "https://api.anthropic.com",
   },
 ];
 
@@ -171,10 +190,20 @@ export default function Settings() {
     compilerArgs,
     pythonPath,
     clangdPath,
+    aiProvider,
+    aiBaseUrl,
     onSettingChange,
     error,
     setError,
   } = useSettingsContext();
+
+  const {
+    keyStatus,
+    saveKey,
+    hasKey,
+    deleteKey,
+    error: aiError,
+  } = useAIContext();
 
   const fontSizeField = useCommittedSetting(
     "fontSize",
@@ -225,6 +254,26 @@ export default function Settings() {
     onSettingChange,
     parseString,
   );
+
+  const aiBaseUrlField = useCommittedSetting(
+    "aiBaseUrl",
+    aiBaseUrl,
+    onSettingChange,
+    parseString,
+  );
+
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const providerHasKey = keyStatus[aiProvider];
+
+  useEffect(() => {
+    void hasKey(aiProvider);
+  }, [aiProvider, hasKey]);
+
+  const saveApiKey = async () => {
+    const value = apiKeyInput.trim();
+    if (value === "") return;
+    if (await saveKey(aiProvider, value)) setApiKeyInput("");
+  };
 
   const [compilerIsValid, setCompilerIsValid] = useState(true);
   const [showMingwDownload, setShowMingwDownload] = useState(false);
@@ -365,6 +414,81 @@ export default function Settings() {
               placeholder: "clangd",
             }}
           />
+        </Section>
+
+        <Section title="AI Credentials">
+          <div className={ROW_CLASS}>
+            <label className={LABEL_CLASS}>Provider</label>
+            <div className="flex flex-1 min-w-0 gap-1.5 pt-1">
+              {AI_PROVIDERS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onSettingChange("aiProvider", opt.value);
+                    onSettingChange("aiBaseUrl", opt.baseUrl);
+                    setApiKeyInput("");
+                  }}
+                  className={`px-2 py-1 text-[11px] rounded border hover:text-(--text-primary) hover:border-(--accent) ${aiProvider === opt.value ? "border-(--accent) text-(--text-primary)" : "border-(--border) text-(--text-muted)"}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <SettingField
+            label="Base URL"
+            field={aiBaseUrlField}
+            inputProps={{
+              type: "text",
+              autoComplete: "off",
+              placeholder: "https://api.example.com/v1",
+            }}
+          />
+
+          <div className={ROW_CLASS}>
+            <label className={LABEL_CLASS}>API key</label>
+            <div className="flex-1 min-w-0">
+              <div className="flex gap-1.5">
+                <input
+                  className={INPUT_CLASS}
+                  type="password"
+                  autoComplete="off"
+                  value={apiKeyInput}
+                  placeholder={
+                    providerHasKey
+                      ? "Key saved. Enter a new key to replace it"
+                      : "Paste API key"
+                  }
+                  onChange={(event) => setApiKeyInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void saveApiKey();
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={apiKeyInput.trim() === ""}
+                  onClick={() => void saveApiKey()}
+                  className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-(--text-primary) hover:border-(--accent) disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  Save
+                </button>
+                {providerHasKey && (
+                  <button
+                    type="button"
+                    onClick={() => void deleteKey(aiProvider)}
+                    className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-red-400 hover:border-red-400"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {aiError && (
+                <div className="mt-1.5 text-[12px] text-red-400">{aiError}</div>
+              )}
+            </div>
+          </div>
         </Section>
       </div>
       {showMingwDownload && (

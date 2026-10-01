@@ -1,5 +1,6 @@
 import CPGenStudio from "./components/CPGenStudio";
 import TitleBar from "./components/TittleBar";
+import { AIProvider } from "./context/AIContext";
 import { ConsoleLogsProvider } from "./context/ConsoleLogsContext";
 import { PipelineProvider } from "./context/PipelineContext";
 import { SettingsProvider } from "./context/SettingsContext";
@@ -13,7 +14,9 @@ function App() {
         <WorkspaceProvider>
           <PipelineProvider>
             <SettingsProvider>
-              <CPGenStudio />
+              <AIProvider>
+                <CPGenStudio />
+              </AIProvider>
             </SettingsProvider>
           </PipelineProvider>
         </WorkspaceProvider>

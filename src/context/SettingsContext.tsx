@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext } from "react";
 import { useSettings } from "../hooks/useSettings";
-import { SettingKey } from "../types";
+import { AIProvider, SettingKey } from "../types";
 
 interface SettingsContextValue {
   fontSize: number;
@@ -11,6 +11,8 @@ interface SettingsContextValue {
   compilerArgs: string;
   pythonPath: string;
   clangdPath: string;
+  aiProvider: AIProvider;
+  aiBaseUrl: string;
   onSettingChange: (key: SettingKey, value: number | string | boolean) => void;
   error: string | null;
   setError: (

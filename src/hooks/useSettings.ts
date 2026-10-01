@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
 import { useEffect, useRef, useState } from "react";
 import { invalidateLspConnection } from "../lsp/monacoIntegration";
-import type { SettingKey } from "../types";
+import type { AIProvider, SettingKey } from "../types";
 
 interface SettingsState {
   fontSize: number;
@@ -12,6 +12,8 @@ interface SettingsState {
   compilerArgs: string;
   pythonPath: string;
   clangdPath: string;
+  aiProvider: AIProvider;
+  aiBaseUrl: string;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -23,6 +25,8 @@ const DEFAULT_SETTINGS: SettingsState = {
   compilerArgs: "-std=c++14 -O2",
   pythonPath: "python",
   clangdPath: "clangd",
+  aiProvider: "openai",
+  aiBaseUrl: "https://api.openai.com/v1",
 };
 
 const LSP_SETTING_TO_LANGUAGE: Partial<Record<SettingKey, string>> = {
