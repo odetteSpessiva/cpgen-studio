@@ -13,6 +13,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use zip::ZipArchive;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 const MINGW_URL: &str =
     "https://github.com/brechtsanders/winlibs_mingw/releases/download/16.2.0posix-14.0.0-ucrt-r1/winlibs-x86_64-posix-seh-gcc-16.2.0-mingw-w64ucrt-14.0.0-r1.zip";
 
@@ -209,7 +212,9 @@ pub async fn check_compiler(gpp_path: String) -> bool {
             gpp_path.trim()
         };
 
-        let output = match Command::new(compiler).arg("--version").output().await {
+        let mut command = Command::new(compiler);
+        command.creation_flags(CREATE_NO_WINDOW);
+        let output = match command.arg("--version").output().await {
             Ok(output) if output.status.success() => output,
             _ => return false,
         };
