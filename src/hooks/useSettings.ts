@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { invalidateLspConnection } from "../lsp/monacoIntegration";
 import type { AIProvider, SettingKey } from "../types";
 
-interface SettingsState {
+type AIProviderSettings = Record<
+  `${AIProvider}BaseUrl` | `${AIProvider}Model`,
+  string
+>;
+
+interface SettingsState extends AIProviderSettings {
   fontSize: number;
   fontFamily: string;
   formatOnSave: boolean;
@@ -13,7 +18,6 @@ interface SettingsState {
   pythonPath: string;
   clangdPath: string;
   aiProvider: AIProvider;
-  aiBaseUrl: string;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -26,7 +30,12 @@ const DEFAULT_SETTINGS: SettingsState = {
   pythonPath: "python",
   clangdPath: "clangd",
   aiProvider: "openai",
-  aiBaseUrl: "https://api.openai.com/v1",
+  openaiBaseUrl: "https://api.openai.com/v1",
+  openaiModel: "",
+  googleBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+  googleModel: "",
+  anthropicBaseUrl: "https://api.anthropic.com/v1",
+  anthropicModel: "",
 };
 
 const LSP_SETTING_TO_LANGUAGE: Partial<Record<SettingKey, string>> = {
@@ -111,5 +120,13 @@ export function useSettings() {
     }
   };
 
-  return { ...settings, isLoaded, onSettingChange, error, setError };
+  return {
+    ...settings,
+    aiBaseUrl: settings[`${settings.aiProvider}BaseUrl` as const],
+    aiModel: settings[`${settings.aiProvider}Model` as const],
+    isLoaded,
+    onSettingChange,
+    error,
+    setError,
+  };
 }

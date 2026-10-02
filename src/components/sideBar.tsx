@@ -1,4 +1,4 @@
-import { Code2, Settings } from "lucide-react";
+import { Bot, Code2, Settings } from "lucide-react";
 import { tabSlot } from "../types";
 
 interface SidebarProps {
@@ -22,6 +22,16 @@ export default function Sidebar({ activeTab, onSelectTab }: SidebarProps) {
         title="Editor"
       >
         <Code2 className="w-5 h-5" />
+      </button>
+
+      <button
+        onClick={() => onSelectTab("chat")}
+        className={`p-2.5 rounded-lg transition-colors ${
+          activeTab === "chat" ? ACTIVE_TAB_STYLE : INACTIVE_TAB_STYLE
+        }`}
+        title="AI Chat"
+      >
+        <Bot className="w-5 h-5" />
       </button>
 
       <button

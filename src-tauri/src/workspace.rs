@@ -158,12 +158,16 @@ pub(crate) fn save_file(
     app: AppHandle,
     window: WebviewWindow,
     contents: String,
+    file_name: Option<String>,
+    extension: Option<String>,
 ) -> Result<Option<PathBuf>, String> {
+    let file_name = file_name.unwrap_or_else(|| "schema.json".to_string());
+    let extension = extension.unwrap_or_else(|| "json".to_string());
     match app
         .dialog()
         .file()
-        .set_file_name("schema.json")
-        .add_filter("json", &["json"])
+        .set_file_name(file_name)
+        .add_filter(&extension, &[extension.as_str()])
         .set_parent(&window)
         .blocking_save_file()
     {

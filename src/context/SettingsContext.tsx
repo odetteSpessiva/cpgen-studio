@@ -13,6 +13,7 @@ interface SettingsContextValue {
   clangdPath: string;
   aiProvider: AIProvider;
   aiBaseUrl: string;
+  aiModel: string;
   onSettingChange: (key: SettingKey, value: number | string | boolean) => void;
   error: string | null;
   setError: (

@@ -1,4 +1,5 @@
 mod ai;
+mod chat;
 mod cmp_expr;
 mod expr;
 mod format;
@@ -11,7 +12,8 @@ mod validate;
 mod watcher;
 mod workspace;
 
-use ai::{delete_key, has_key, save_key};
+use ai::{delete_key, get_key, has_key, list_models, save_key};
+use chat::{pick_chat_attachment, send_message};
 use generation::{generate_tests, generate_tests_from_schema, preview_schema};
 use lsp::{lsp_kill, lsp_send, lsp_start, GppTripleState, LspState};
 use mingw_installer::{cancel_mingw, check_compiler, download_mingw, DownloadState};
@@ -70,7 +72,11 @@ pub fn run() {
             check_compiler,
             save_key,
             has_key,
-            delete_key
+            delete_key,
+            get_key,
+            list_models,
+            send_message,
+            pick_chat_attachment
         ])
         .setup(|app| {
             let version = app.package_info().version.to_string();

@@ -44,6 +44,10 @@ interface WorkspaceFilesContextValue {
   handleSaveSchema: () => void;
   handleLoadSchema: () => void;
   exportTests: (testName: string) => void;
+  saveGeneratedGenerator: (
+    contents: string,
+    language: string,
+  ) => Promise<boolean>;
   isExporting: boolean;
 }
 

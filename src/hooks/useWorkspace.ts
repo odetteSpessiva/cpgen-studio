@@ -115,16 +115,33 @@ export function useWorkspaceFiles(
     solution: savedState.slotPaths.solution,
   });
 
-  const pendingSelfWriteRef = useRef<Set<string>>(new Set());
+  const pendingSelfWriteRef = useRef(
+    new Map<string, { expiresAt: number }>(),
+  );
 
   function markPendingSelfWrite(path: string) {
-    pendingSelfWriteRef.current.add(path);
-    setTimeout(() => pendingSelfWriteRef.current.delete(path), 10000);
+    const expiresAt = Number.POSITIVE_INFINITY;
+    pendingSelfWriteRef.current.set(path, { expiresAt });
+  }
+
+  function completePendingSelfWrite(path: string) {
+    const expiresAt = Date.now() + 1000;
+    pendingSelfWriteRef.current.set(path, { expiresAt });
+    setTimeout(() => {
+      const pending = pendingSelfWriteRef.current.get(path);
+      if (pending?.expiresAt === expiresAt) {
+        pendingSelfWriteRef.current.delete(path);
+      }
+    }, 10000);
   }
 
   const [openFiles, setOpenFiles] = useState<Map<string, WorkspaceFile>>(
     savedState.openFiles,
   );
+  const openFilesRef = useRef(openFiles);
+  openFilesRef.current = openFiles;
+  const appendLogRef = useRef(appendLog);
+  appendLogRef.current = appendLog;
   const [activePath, setActivePath] = useState<string | null>(
     savedState.activePath,
   );
@@ -335,13 +352,13 @@ export function useWorkspaceFiles(
     const fileToSave = activeFile;
     if (!fileToSave) return false;
     const content = contentOverride ?? fileToSave.value;
-
     try {
       markPendingSelfWrite(fileToSave.path);
       await invoke("save_workspace_file", {
         path: fileToSave.path,
         content,
       });
+      completePendingSelfWrite(fileToSave.path);
       updateFileByPath(fileToSave.path, (file) => ({
         ...file,
         value: content,
@@ -350,6 +367,7 @@ export function useWorkspaceFiles(
       appendLog("info", `Saved ${fileToSave.name}`);
       return true;
     } catch (error) {
+      pendingSelfWriteRef.current.delete(fileToSave.path);
       appendLog("error", `Failed to save ${fileToSave.name}: ${String(error)}`);
       return false;
     }
@@ -364,6 +382,31 @@ export function useWorkspaceFiles(
     } catch (error) {
       appendLog("error", `Failed to save schema: ${String(error)}`);
     }
+  };
+
+  const saveGeneratedGenerator = async (
+    contents: string,
+    language: string,
+  ): Promise<boolean> => {
+    const extensionByLanguage: Record<string, string> = {
+      python: "py",
+      cpp: "cpp",
+      "c++": "cpp",
+      javascript: "js",
+      typescript: "ts",
+    };
+    const normalizedLanguage = language.trim().toLowerCase();
+    const extension = extensionByLanguage[normalizedLanguage] ?? "txt";
+    const path = await invoke<string | null>("save_file", {
+      contents,
+      fileName: `gen.${extension}`,
+      extension,
+    });
+    if (!path) return false;
+    await loadWorkspaceFile("generator", path);
+    setGeneratorMode("files");
+    appendLog("success", `Saved and assigned generator: ${path}`);
+    return true;
   };
 
   const handleLoadSchema = async () => {
@@ -447,13 +490,13 @@ export function useWorkspaceFiles(
   useEffect(() => {
     const unlisten = listen<string>("file-changed", async (event) => {
       const changedPath = event.payload;
+      const pendingSelfWrite =
+        pendingSelfWriteRef.current.get(changedPath);
+      if (!openFilesRef.current.has(changedPath)) return;
 
-      if (pendingSelfWriteRef.current.has(changedPath)) {
-        pendingSelfWriteRef.current.delete(changedPath);
+      if (pendingSelfWrite) {
         return;
       }
-
-      if (!openFiles.has(changedPath)) return;
 
       try {
         const payload = await invoke<WorkspaceFilePayload>(
@@ -462,21 +505,30 @@ export function useWorkspaceFiles(
             path: changedPath,
           },
         );
+        const currentFile = openFilesRef.current.get(changedPath);
+        if (currentFile?.value === payload.value) {
+          return;
+        }
         openFile(buildWorkspaceFile(payload));
       } catch (error) {
-        appendLog("error", `Failed to reload ${changedPath}: ${String(error)}`);
+        appendLogRef.current(
+          "error",
+          `Failed to reload ${changedPath}: ${String(error)}`,
+        );
       }
     });
     return () => {
       unlisten.then((fn) => fn());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openFiles, appendLog]);
+  }, []);
 
   const watchedPathsRef = useRef<Set<string>>(new Set());
+  const openFilePaths = [...openFiles.keys()].join("\u0000");
 
   useEffect(() => {
-    const currentPaths = new Set(openFiles.keys());
+    const currentPaths = new Set(
+      openFilePaths ? openFilePaths.split("\u0000") : [],
+    );
     const previouslyWatched = watchedPathsRef.current;
 
     for (const path of currentPaths) {
@@ -491,7 +543,7 @@ export function useWorkspaceFiles(
     }
 
     watchedPathsRef.current = currentPaths;
-  }, [openFiles]);
+  }, [openFilePaths]);
 
   return {
     openFiles,
@@ -521,6 +573,7 @@ export function useWorkspaceFiles(
     setIsDirty,
     handleSaveSchema,
     handleLoadSchema,
+    saveGeneratedGenerator,
     exportTests,
     isExporting,
   };

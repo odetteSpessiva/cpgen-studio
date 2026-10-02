@@ -13,6 +13,14 @@ export interface WorkspaceFilePayload {
   value: string;
 }
 
+export interface ChatAttachment {
+  path: string;
+  name: string;
+  mimeType: string;
+  dataBase64: string;
+  text: string | null;
+}
+
 export type SettingKey =
   | "fontSize"
   | "fontFamily"
@@ -22,13 +30,32 @@ export type SettingKey =
   | "pythonPath"
   | "clangdPath"
   | "aiProvider"
-  | "aiBaseUrl";
+  | `${AIProvider}BaseUrl`
+  | `${AIProvider}Model`;
 
 export type AIProvider = "openai" | "google" | "anthropic";
 
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+export interface AIInstance {
+  id: string;
+  name: string;
+  problemFile: ChatAttachment | null;
+  messages: ChatMessage[];
+}
+
+export interface ModelInfo {
+  id: string;
+  imageInput: boolean | null;
+  pdfInput: boolean | null;
+}
+
 export type WorkspaceSlot = "generator" | "solution";
 
-export type tabSlot = "settings" | "editor";
+export type tabSlot = "settings" | "editor" | "chat";
 
 export type GeneratorMode = "files" | "visual";
 

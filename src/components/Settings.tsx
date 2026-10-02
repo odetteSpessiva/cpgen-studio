@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { Eye, EyeOff } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useAIContext } from "../context/AIContext";
 import { useSettingsContext } from "../context/SettingsContext";
@@ -29,21 +30,9 @@ const FONT_OPTIONS = [
 ];
 
 const AI_PROVIDERS = [
-  {
-    label: "OpenAI",
-    value: "openai",
-    baseUrl: "https://api.openai.com/v1",
-  },
-  {
-    label: "Google",
-    value: "google",
-    baseUrl: "https://generativelanguage.googleapis.com",
-  },
-  {
-    label: "Anthropic",
-    value: "anthropic",
-    baseUrl: "https://api.anthropic.com",
-  },
+  { label: "OpenAI", value: "openai" },
+  { label: "Google", value: "google" },
+  { label: "Anthropic", value: "anthropic" },
 ];
 
 const COMPILER_ARGS_OPTIONS = [
@@ -192,6 +181,7 @@ export default function Settings() {
     clangdPath,
     aiProvider,
     aiBaseUrl,
+    aiModel,
     onSettingChange,
     error,
     setError,
@@ -199,9 +189,12 @@ export default function Settings() {
 
   const {
     keyStatus,
+    models,
+    isFetchingModels,
     saveKey,
-    hasKey,
+    getKey,
     deleteKey,
+    fetchModels,
     error: aiError,
   } = useAIContext();
 
@@ -256,23 +249,31 @@ export default function Settings() {
   );
 
   const aiBaseUrlField = useCommittedSetting(
-    "aiBaseUrl",
+    `${aiProvider}BaseUrl`,
     aiBaseUrl,
     onSettingChange,
     parseString,
   );
 
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const providerHasKey = keyStatus[aiProvider];
+  const providerModels = models[aiProvider] ?? [];
 
   useEffect(() => {
-    void hasKey(aiProvider);
-  }, [aiProvider, hasKey]);
+    let cancelled = false;
+    void getKey(aiProvider).then((key) => {
+      if (!cancelled) setApiKeyInput(key);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [aiProvider, getKey]);
 
   const saveApiKey = async () => {
     const value = apiKeyInput.trim();
     if (value === "") return;
-    if (await saveKey(aiProvider, value)) setApiKeyInput("");
+    if (await saveKey(aiProvider, value)) setApiKeyInput(value);
   };
 
   const [compilerIsValid, setCompilerIsValid] = useState(true);
@@ -426,7 +427,6 @@ export default function Settings() {
                   type="button"
                   onClick={() => {
                     onSettingChange("aiProvider", opt.value);
-                    onSettingChange("aiBaseUrl", opt.baseUrl);
                     setApiKeyInput("");
                   }}
                   className={`px-2 py-1 text-[11px] rounded border hover:text-(--text-primary) hover:border-(--accent) ${aiProvider === opt.value ? "border-(--accent) text-(--text-primary)" : "border-(--border) text-(--text-muted)"}`}
@@ -449,18 +449,14 @@ export default function Settings() {
 
           <div className={ROW_CLASS}>
             <label className={LABEL_CLASS}>API key</label>
-            <div className="flex-1 min-w-0">
-              <div className="flex gap-1.5">
+            <div className="flex flex-1 min-w-0 gap-1.5">
+              <div className="relative flex-1 min-w-0">
                 <input
-                  className={INPUT_CLASS}
-                  type="password"
+                  className={`${INPUT_CLASS} pr-8 [&::-ms-reveal]:hidden`}
+                  type={showApiKey ? "text" : "password"}
                   autoComplete="off"
                   value={apiKeyInput}
-                  placeholder={
-                    providerHasKey
-                      ? "Key saved. Enter a new key to replace it"
-                      : "Paste API key"
-                  }
+                  placeholder="Paste API key"
                   onChange={(event) => setApiKeyInput(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") void saveApiKey();
@@ -468,27 +464,78 @@ export default function Settings() {
                 />
                 <button
                   type="button"
-                  disabled={apiKeyInput.trim() === ""}
-                  onClick={() => void saveApiKey()}
-                  className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-(--text-primary) hover:border-(--accent) disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                  onClick={() => setShowApiKey((prev) => !prev)}
+                  className="absolute top-0 right-0 flex items-center justify-center w-8 h-8 text-(--text-muted) hover:text-(--text-primary)"
                 >
-                  Save
+                  {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
-                {providerHasKey && (
-                  <button
-                    type="button"
-                    onClick={() => void deleteKey(aiProvider)}
-                    className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-red-400 hover:border-red-400"
-                  >
-                    Remove
-                  </button>
-                )}
               </div>
-              {aiError && (
-                <div className="mt-1.5 text-[12px] text-red-400">{aiError}</div>
+              <button
+                type="button"
+                disabled={apiKeyInput.trim() === ""}
+                onClick={() => void saveApiKey()}
+                className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-(--text-primary) hover:border-(--accent) disabled:opacity-50 disabled:pointer-events-none"
+              >
+                Save
+              </button>
+              {providerHasKey && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (await deleteKey(aiProvider)) setApiKeyInput("");
+                  }}
+                  className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-red-400 hover:border-red-400"
+                >
+                  Remove
+                </button>
               )}
             </div>
           </div>
+
+          <div className={ROW_CLASS}>
+            <label className={LABEL_CLASS}>Model</label>
+            <div className="flex flex-1 min-w-0 gap-1.5">
+              <select
+                className={INPUT_CLASS}
+                value={aiModel}
+                onChange={(event) =>
+                  onSettingChange(`${aiProvider}Model`, event.target.value)
+                }
+              >
+                <option value="">
+                  {providerModels.length === 0
+                    ? "Fetch models to choose"
+                    : "Select a model"}
+                </option>
+                {aiModel !== "" &&
+                  !providerModels.some((m) => m.id === aiModel) && (
+                    <option value={aiModel}>{aiModel}</option>
+                  )}
+                {providerModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.id}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!providerHasKey || isFetchingModels}
+                onClick={() => void fetchModels(aiProvider, aiBaseUrl)}
+                className="shrink-0 h-8 px-3 text-[12px] rounded border border-(--border) text-(--text-muted) hover:text-(--text-primary) hover:border-(--accent) disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isFetchingModels
+                  ? `Fetching (${providerModels.length})`
+                  : "Fetch"}
+              </button>
+            </div>
+          </div>
+
+          {aiError && (
+            <div className="ml-24.25 mb-3 text-[12px] text-red-400">
+              {aiError}
+            </div>
+          )}
         </Section>
       </div>
       {showMingwDownload && (

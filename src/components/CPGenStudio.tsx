@@ -9,6 +9,7 @@ import {
   useDefaultLayout,
 } from "react-resizable-panels";
 import ConsoleLogs from "./ConsoleLogs";
+import Chat from "./Chat";
 import EditorCanvas from "./EditorCanvas";
 import Settings from "./Settings";
 import Sidebar from "./sideBar";
@@ -28,7 +29,7 @@ export default function CPGenStudio() {
     <div className="w-full h-full min-h-0 flex flex-row overflow-hidden bg-background">
       <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
       <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
-        {activeTab == "editor" ? (
+        {activeTab === "editor" ? (
           <Group
             orientation="vertical"
             className="flex-1 min-h-0"
@@ -54,6 +55,8 @@ export default function CPGenStudio() {
               <ConsoleLogs />
             </Panel>
           </Group>
+        ) : activeTab === "chat" ? (
+          <Chat />
         ) : (
           <Settings />
         )}

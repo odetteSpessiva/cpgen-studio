@@ -300,6 +300,10 @@ export function useMonacoEditor({
 
     const model = modelRef.current;
     if (model.isDisposed()) return;
+    if (model.getValue() === (value ?? "")) {
+      lastSentValueRef.current = value ?? null;
+      return;
+    }
 
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -308,10 +312,14 @@ export function useMonacoEditor({
     hasPendingEditRef.current = false;
 
     isProgrammaticUpdateRef.current = true;
+    const viewState = editorRef.current?.saveViewState();
     try {
       model.setValue(value ?? "");
     } finally {
       isProgrammaticUpdateRef.current = false;
+    }
+    if (viewState && editorRef.current?.getModel() === model) {
+      editorRef.current.restoreViewState(viewState);
     }
 
     if (!isDirty) {
