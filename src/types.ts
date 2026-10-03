@@ -38,13 +38,17 @@ export type AIProvider = "openai" | "google" | "anthropic";
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  thinking?: string;
 }
+
+export type ChatTab = "problem" | "solution";
 
 export interface AIInstance {
   id: string;
   name: string;
   problemFile: ChatAttachment | null;
-  messages: ChatMessage[];
+  activeTab: ChatTab;
+  messagesByTab: Record<ChatTab, ChatMessage[]>;
 }
 
 export interface ModelInfo {

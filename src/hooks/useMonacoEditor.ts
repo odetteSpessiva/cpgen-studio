@@ -1,6 +1,6 @@
 import type { OnMount } from "@monaco-editor/react";
 import { dirname } from "@tauri-apps/api/path";
-import type { editor, IDisposable, Selection } from "monaco-editor";
+import type { editor, IDisposable } from "monaco-editor";
 import { useCallback, useEffect, useInsertionEffect, useRef } from "react";
 import { getOrStartLSP } from "../lsp/monacoIntegration";
 import type { LogLevel, WorkspaceFile } from "../types";
@@ -41,39 +41,6 @@ function toFileUri(filePath: string): string {
   return `file://${encodeURI(withLeadingSlash)}`;
 }
 
-function cleanCode(model: TrackedModel, selections: Selection[] | null) {
-  const original = model.getValue();
-  if (!original) return false;
-  const edits: editor.IIdentifiedSingleEditOperation[] = [];
-  const toRange = (start: number, end: number) => ({
-    startLineNumber: model.getPositionAt(start).lineNumber,
-    startColumn: model.getPositionAt(start).column,
-    endLineNumber: model.getPositionAt(end).lineNumber,
-    endColumn: model.getPositionAt(end).column,
-  });
-  const trailingMatch = original.match(/\s+$/);
-  const trailingMatchStart = trailingMatch?.index ?? original.length;
-
-  for (const m of original.matchAll(/[^\S\r\n]+(?=\r?\n|$)/g)) {
-    const start = m.index ?? -1;
-    if (start >= 0 && start < trailingMatchStart) {
-      edits.push({ range: toRange(start, start + m[0].length), text: "" });
-    }
-  }
-
-  if (!trailingMatch || trailingMatch[0] !== "\n") {
-    edits.push({
-      range: toRange(trailingMatchStart, original.length),
-      text: "\n",
-    });
-  }
-
-  if (edits.length === 0) return false;
-  const before = selections ?? [];
-  model.pushEditOperations(before, edits, () => before);
-  return true;
-}
-
 export function useMonacoEditor({
   activeFile,
   appendLog = () => {},
@@ -107,6 +74,27 @@ export function useMonacoEditor({
   const lastSentValueRef = useRef<string | null>(activeFile?.value ?? null);
   const lastReportedIsDirtyRef = useRef<boolean | null>(null);
 
+  const sendLspChange = useCallback((model: TrackedModel, value: string) => {
+    const language = model.getLanguageId();
+    getOrStartLSP(language, "").then((connection) => {
+      connection.sendNotification("textDocument/didChange", {
+        textDocument: { uri: model._lspUri, version: model.getVersionId() },
+        contentChanges: [{ text: value }],
+      });
+    });
+  }, []);
+
+  const syncModelValue = useCallback(
+    (model: TrackedModel, path: string): string => {
+      const value = model.getValue();
+      lastSentValueRef.current = value;
+      handleCodeChangeRef.current(path, value);
+      sendLspChange(model, value);
+      return value;
+    },
+    [handleCodeChangeRef, sendLspChange],
+  );
+
   const flush = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -123,19 +111,8 @@ export function useMonacoEditor({
     )
       return;
 
-    const value = modelRef.current.getValue();
-    lastSentValueRef.current = value;
-    handleCodeChangeRef.current(boundPathRef.current, value);
-
-    const model = modelRef.current;
-    const language = model.getLanguageId();
-    getOrStartLSP(language, "").then((connection) => {
-      connection.sendNotification("textDocument/didChange", {
-        textDocument: { uri: model._lspUri, version: model.getVersionId() },
-        contentChanges: [{ text: value }],
-      });
-    });
-  }, [handleCodeChangeRef]);
+    syncModelValue(modelRef.current, boundPathRef.current);
+  }, [syncModelValue]);
 
   const performSave = useCallback(async (): Promise<boolean> => {
     const currentModel = modelRef.current;
@@ -149,16 +126,17 @@ export function useMonacoEditor({
         );
         if (formatAction) await formatAction.run();
       }
-      hasPendingEditRef.current =
-        cleanCode(currentModel, editorRef.current?.getSelections() ?? null) ||
-        hasPendingEditRef.current;
     } catch (err) {
       appendLogRef.current("error", `[formatter] failed: ${String(err)}`);
     } finally {
       isProgrammaticUpdateRef.current = false;
     }
-    const liveValue = currentModel.getValue();
-    flush();
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    hasPendingEditRef.current = false;
+    const liveValue = syncModelValue(currentModel, savePath);
 
     const versionAtSave = currentModel.getAlternativeVersionId();
 
@@ -182,7 +160,7 @@ export function useMonacoEditor({
       );
       return false;
     }
-  }, [flush, formatOnSaveRef, saveRef, setIsDirtyRef]);
+  }, [formatOnSaveRef, saveRef, setIsDirtyRef, syncModelValue]);
 
   const handleEditorMount: OnMount = (editorInstance, monaco) => {
     editorRef.current = editorInstance;

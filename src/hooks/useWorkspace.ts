@@ -115,9 +115,7 @@ export function useWorkspaceFiles(
     solution: savedState.slotPaths.solution,
   });
 
-  const pendingSelfWriteRef = useRef(
-    new Map<string, { expiresAt: number }>(),
-  );
+  const pendingSelfWriteRef = useRef(new Map<string, { expiresAt: number }>());
 
   function markPendingSelfWrite(path: string) {
     const expiresAt = Number.POSITIVE_INFINITY;
@@ -139,9 +137,15 @@ export function useWorkspaceFiles(
     savedState.openFiles,
   );
   const openFilesRef = useRef(openFiles);
-  openFilesRef.current = openFiles;
   const appendLogRef = useRef(appendLog);
-  appendLogRef.current = appendLog;
+
+  useEffect(() => {
+    openFilesRef.current = openFiles;
+  }, [openFiles]);
+
+  useEffect(() => {
+    appendLogRef.current = appendLog;
+  }, [appendLog]);
   const [activePath, setActivePath] = useState<string | null>(
     savedState.activePath,
   );
@@ -384,9 +388,10 @@ export function useWorkspaceFiles(
     }
   };
 
-  const saveGeneratedGenerator = async (
+  const saveGeneratedFile = async (
     contents: string,
     language: string,
+    slot: WorkspaceSlot,
   ): Promise<boolean> => {
     const extensionByLanguage: Record<string, string> = {
       python: "py",
@@ -397,15 +402,16 @@ export function useWorkspaceFiles(
     };
     const normalizedLanguage = language.trim().toLowerCase();
     const extension = extensionByLanguage[normalizedLanguage] ?? "txt";
+    const prefix = slot === "solution" ? "sol" : "gen";
     const path = await invoke<string | null>("save_file", {
       contents,
-      fileName: `gen.${extension}`,
+      fileName: `${prefix}.${extension}`,
       extension,
     });
     if (!path) return false;
-    await loadWorkspaceFile("generator", path);
-    setGeneratorMode("files");
-    appendLog("success", `Saved and assigned generator: ${path}`);
+    await loadWorkspaceFile(slot, path);
+    if (slot === "generator") setGeneratorMode("files");
+    appendLog("success", `Saved and assigned ${slot}: ${path}`);
     return true;
   };
 
@@ -480,7 +486,6 @@ export function useWorkspaceFiles(
     };
 
     restoreFiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     savedState.slotPaths.generator,
     savedState.slotPaths.solution,
@@ -490,8 +495,7 @@ export function useWorkspaceFiles(
   useEffect(() => {
     const unlisten = listen<string>("file-changed", async (event) => {
       const changedPath = event.payload;
-      const pendingSelfWrite =
-        pendingSelfWriteRef.current.get(changedPath);
+      const pendingSelfWrite = pendingSelfWriteRef.current.get(changedPath);
       if (!openFilesRef.current.has(changedPath)) return;
 
       if (pendingSelfWrite) {
@@ -573,7 +577,7 @@ export function useWorkspaceFiles(
     setIsDirty,
     handleSaveSchema,
     handleLoadSchema,
-    saveGeneratedGenerator,
+    saveGeneratedFile,
     exportTests,
     isExporting,
   };

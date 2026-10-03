@@ -41,12 +41,9 @@ pub(crate) fn watch_file(
                     let payload = emitted_path.clone();
                     let should_emit = {
                         let mut last = last_emitted_for_callback.lock().unwrap();
-                        let duplicate = last
-                            .as_ref()
-                            .is_some_and(|(path, timestamp)| {
-                                path == &payload
-                                    && timestamp.elapsed() < Duration::from_millis(100)
-                            });
+                        let duplicate = last.as_ref().is_some_and(|(path, timestamp)| {
+                            path == &payload && timestamp.elapsed() < Duration::from_millis(100)
+                        });
                         if !duplicate {
                             *last = Some((payload.clone(), Instant::now()));
                         }

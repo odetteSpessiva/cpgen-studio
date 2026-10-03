@@ -13,6 +13,13 @@ pub(crate) struct ChatMessage {
     content: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ChatDelta {
+    kind: &'static str,
+    text: String,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ChatAttachment {
@@ -50,7 +57,7 @@ pub(crate) async fn send_message(
     model: String,
     messages: Vec<ChatMessage>,
     attachment: Option<ChatAttachment>,
-    on_delta: Channel<String>,
+    on_delta: Channel<ChatDelta>,
 ) -> Result<String, String> {
     let api_key = crate::ai::get_key(provider.clone())
         .await?
@@ -149,8 +156,7 @@ pub(crate) async fn send_message(
             let contents = messages
                 .iter()
                 .filter(|message| message.role != "system")
-                .enumerate()
-                .map(|(_, message)| {
+                .map(|message| {
                     let mut parts = vec![serde_json::json!({ "text": message.content })];
                     if message.role == "user"
                         && attachment_message_index.is_some()
@@ -219,23 +225,48 @@ pub(crate) async fn send_message(
             if let Some(message) = event["error"]["message"].as_str() {
                 return Err(format!("Provider error: {message}"));
             }
-            let delta = match provider.as_str() {
-                "openai" if has_pdf => {
-                    if event["type"].as_str() == Some("response.output_text.delta") {
-                        event["delta"].as_str()
+            let (kind, delta) = match provider.as_str() {
+                "openai" if has_pdf => match event["type"].as_str() {
+                    Some("response.output_text.delta") => ("content", event["delta"].as_str()),
+                    Some("response.reasoning_summary_text.delta") => {
+                        ("thinking", event["delta"].as_str())
+                    }
+                    _ => ("content", None),
+                },
+                "openai" => {
+                    let delta = &event["choices"][0]["delta"];
+                    if delta["content"].as_str().is_some() {
+                        ("content", delta["content"].as_str())
                     } else {
-                        None
+                        ("thinking", delta["reasoning_content"].as_str())
                     }
                 }
-                "openai" => event["choices"][0]["delta"]["content"].as_str(),
-                "anthropic" => event["delta"]["text"].as_str(),
-                _ => event["candidates"][0]["content"]["parts"][0]["text"].as_str(),
+                "anthropic" => match event["delta"]["type"].as_str() {
+                    Some("thinking_delta") => ("thinking", event["delta"]["thinking"].as_str()),
+                    _ => ("content", event["delta"]["text"].as_str()),
+                },
+                _ => {
+                    let part = &event["candidates"][0]["content"]["parts"][0];
+                    (
+                        if part["thought"].as_bool() == Some(true) {
+                            "thinking"
+                        } else {
+                            "content"
+                        },
+                        part["text"].as_str(),
+                    )
+                }
             };
             if let Some(text) = delta.filter(|text| !text.is_empty()) {
                 on_delta
-                    .send(text.to_string())
+                    .send(ChatDelta {
+                        kind,
+                        text: text.to_string(),
+                    })
                     .map_err(|e| format!("Failed to send delta: {e}"))?;
-                reply.push_str(text);
+                if kind == "content" {
+                    reply.push_str(text);
+                }
             }
         }
     }

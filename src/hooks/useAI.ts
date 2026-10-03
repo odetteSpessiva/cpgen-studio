@@ -1,57 +1,103 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePipelineContext } from "../context/PipelineContext";
 import { useSettingsContext } from "../context/SettingsContext";
 import type {
   AIInstance,
   ChatAttachment,
   ChatMessage,
+  ChatTab,
   ModelInfo,
 } from "../types";
 
-const SYSTEM_PROMPT = `You are a test generator assistant. Read the attached problem statement and write a generator program that outputs exactly one valid test case to stdout on every run. Return only a JSON object with this exact shape: {"language":"<language>","code":"<complete source code>"}. Do not wrap it in Markdown. User messages are small nudges about the generator, not the main task.`;
 const INSTANCES_STORAGE_KEY = "cpgen_ai_instances";
 
 const createDefaultInstance = (): AIInstance => ({
   id: crypto.randomUUID(),
   name: "New instance",
   problemFile: null,
-  messages: [],
+  activeTab: "problem",
+  messagesByTab: { problem: [], solution: [] },
 });
 
-const loadInstances = (): AIInstance[] => {
+const normalizeInstance = (
+  value: AIInstance & { messages?: ChatMessage[] },
+): AIInstance => ({
+  id: value.id,
+  name: value.name,
+  problemFile: value.problemFile,
+  activeTab: value.activeTab === "solution" ? "solution" : "problem",
+  messagesByTab: value.messagesByTab ?? {
+    problem: value.messages ?? [],
+    solution: [],
+  },
+});
+
+interface PersistedAIState {
+  instances: AIInstance[];
+  activeInstanceId: string;
+}
+
+const loadPersistedState = (): PersistedAIState => {
+  const fallback = createDefaultInstance();
   try {
     const saved = localStorage.getItem(INSTANCES_STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved) as AIInstance[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const parsed = JSON.parse(saved) as
+        AIInstance[] | Partial<PersistedAIState>;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const instances = parsed.map(normalizeInstance);
+        return { instances, activeInstanceId: instances[0].id };
+      }
+      if (
+        !Array.isArray(parsed) &&
+        Array.isArray(parsed.instances) &&
+        parsed.instances.length > 0
+      ) {
+        const instances = parsed.instances.map(normalizeInstance);
+        const activeInstanceId =
+          typeof parsed.activeInstanceId === "string" &&
+          instances.some((instance) => instance.id === parsed.activeInstanceId)
+            ? parsed.activeInstanceId
+            : instances[0].id;
+        return { instances, activeInstanceId };
+      }
     }
   } catch (err) {
-    console.error("Failed to restore AI instances:", err);
+    console.error("Failed to restore AI state:", err);
   }
-  return [createDefaultInstance()];
+  return { instances: [fallback], activeInstanceId: fallback.id };
 };
 
 export function useAI() {
   const { aiProvider, aiBaseUrl, aiModel } = useSettingsContext();
+  const { config } = usePipelineContext();
   const [keyStatus, setKeyStatus] = useState<Record<string, boolean>>({});
   const [models, setModels] = useState<Record<string, ModelInfo[]>>({});
   const [isFetchingModels, setIsFetchingModels] = useState(false);
-  const [instances, setInstances] = useState<AIInstance[]>(loadInstances);
+  const [persistedState] = useState(loadPersistedState);
+  const [instances, setInstances] = useState<AIInstance[]>(
+    persistedState.instances,
+  );
   const [activeInstanceId, setActiveInstanceId] = useState(
-    () => instances[0].id,
+    persistedState.activeInstanceId,
   );
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const storePromiseRef = useRef<Promise<Store | null>>(null);
 
   const activeInstance =
-    instances.find((instance) => instance.id === activeInstanceId) ?? instances[0];
-  const messages = activeInstance.messages;
+    instances.find((instance) => instance.id === activeInstanceId) ??
+    instances[0];
+  const messages = activeInstance.messagesByTab[activeInstance.activeTab];
 
   useEffect(() => {
-    localStorage.setItem(INSTANCES_STORAGE_KEY, JSON.stringify(instances));
-  }, [instances]);
+    localStorage.setItem(
+      INSTANCES_STORAGE_KEY,
+      JSON.stringify({ instances, activeInstanceId }),
+    );
+  }, [activeInstanceId, instances]);
 
   const updateActiveInstance = useCallback(
     (update: (instance: AIInstance) => AIInstance) => {
@@ -69,7 +115,8 @@ export function useAI() {
       id: crypto.randomUUID(),
       name: "New instance",
       problemFile: null,
-      messages: [],
+      activeTab: "problem",
+      messagesByTab: { problem: [], solution: [] },
     };
     setInstances((prev) => [...prev, instance]);
     setActiveInstanceId(instance.id);
@@ -90,6 +137,14 @@ export function useAI() {
       ),
     );
   }, []);
+
+  const selectChatTab = useCallback(
+    (tab: ChatTab) => {
+      updateActiveInstance((instance) => ({ ...instance, activeTab: tab }));
+      setError(null);
+    },
+    [updateActiveInstance],
+  );
 
   const deleteInstance = useCallback(
     (id: string) => {
@@ -114,7 +169,7 @@ export function useAI() {
         ...instance,
         name: file.name,
         problemFile: file,
-        messages: [],
+        messagesByTab: { problem: [], solution: [] },
       }));
       setError(null);
     },
@@ -219,8 +274,73 @@ export function useAI() {
         setError("Attach a problem statement before sending a message.");
         return;
       }
+      const responseFormat = `
+OUTPUT FORMAT (strict). Your entire response is parsed by a program with
+JSON.parse. Any character outside the JSON object makes the response fail.
+
+Return exactly one JSON object:
+{"language":"python"|"cpp","code":"<complete source code>"}
+
+For explicit non-coding requests, return:
+{"language":"text","code":"<response>"}
+
+Rules:
+- The first character of your response is { and the last is }.
+- No Markdown, no code fences, no explanation, no text before or after.
+- "code" is a single JSON string: escape newlines as \\n, quotes as \\", and
+  backslashes as \\\\.
+- Put all explanations inside code comments, never outside the object.
+
+Example of a valid response:
+{"language":"cpp","code":"#include <iostream>\\nint main() {\\n  std::cout << 1 << \\"\\\\n\\";\\n}\\n"}
+`.trim();
+
+      const systemPrompt =
+        activeInstance.activeTab === "problem"
+          ? `
+You are a competitive-programming test generator assistant.
+
+Read the attached problem statement and write a generator in Python or C++
+that prints exactly one valid test case to stdout per run, with no other output.
+
+The pipeline runs the generator ${config.batches} times.
+Test index (1-based): ${config.indexDelivery}.
+Read it, use it to pick the subtask or test category when the statement defines
+subtasks, and scale size and difficulty across indices.
+
+Requirements:
+- Every test must satisfy all constraints and guarantees in the statement
+  (value ranges, distinctness, connectivity, sum limits, guaranteed answer
+  existence, etc.).
+- Seed all randomness from the index so the same index always produces the
+  same test.
+- Cover edge cases and extremes: minimum sizes, maximum sizes, and special
+  structures, while spreading the rest from small to maximal.
+- Match the input format exactly: token order, whitespace, line breaks, and a
+  trailing newline.
+- Run fast enough for maximum constraints.
+
+${responseFormat}
+`.trim()
+          : `
+You are a competitive-programming solution assistant.
+
+Read the attached problem statement and write a correct, efficient solution in
+Python or C++ that reads from stdin and writes to stdout. Ignore any file I/O
+instructions in the statement.
+
+Requirements:
+- Meet the time and memory limits at maximum constraints.
+- Match the output format exactly.
+- Handle edge cases such as minimum inputs, overflow (use 64-bit where needed),
+  and degenerate structures.
+- If there is ANY chance that there will be an overflow, use a larger data type,
+  including inside any intermediate calculations
+
+${responseFormat}
+`.trim();
       const history: ChatMessage[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         {
           role: "user",
           content: activeInstance.problemFile.text
@@ -238,22 +358,55 @@ export function useAI() {
       ];
       updateActiveInstance((instance) => ({
         ...instance,
-        messages: [...nextMessages, { role: "assistant", content: "" }],
+        messagesByTab: {
+          ...instance.messagesByTab,
+          [instance.activeTab]: [
+            ...nextMessages,
+            { role: "assistant", content: "" },
+          ],
+        },
       }));
 
       const setReply = (update: (reply: string) => string) =>
         updateActiveInstance((instance) => ({
           ...instance,
-          messages: instance.messages.map((m, i) =>
-            i === instance.messages.length - 1
-              ? { ...m, content: update(m.content) }
-              : m,
-          ),
+          messagesByTab: {
+            ...instance.messagesByTab,
+            [instance.activeTab]: instance.messagesByTab[
+              instance.activeTab
+            ].map((m, i) =>
+              i === instance.messagesByTab[instance.activeTab].length - 1
+                ? { ...m, content: update(m.content) }
+                : m,
+            ),
+          },
+        }));
+      const setThinking = (update: (thinking: string) => string) =>
+        updateActiveInstance((instance) => ({
+          ...instance,
+          messagesByTab: {
+            ...instance.messagesByTab,
+            [instance.activeTab]: instance.messagesByTab[
+              instance.activeTab
+            ].map((m, i) =>
+              i === instance.messagesByTab[instance.activeTab].length - 1
+                ? { ...m, thinking: update(m.thinking ?? "") }
+                : m,
+            ),
+          },
         }));
       let done = false;
-      const onDelta = new Channel<string>();
+      const onDelta = new Channel<{
+        kind: "content" | "thinking";
+        text: string;
+      }>();
       onDelta.onmessage = (delta) => {
-        if (!done) setReply((reply) => reply + delta);
+        if (done) return;
+        if (delta.kind === "thinking") {
+          setThinking((thinking) => thinking + delta.text);
+        } else {
+          setReply((reply) => reply + delta.text);
+        }
       };
       try {
         const reply = await invoke<string>("send_message", {
@@ -271,16 +424,29 @@ export function useAI() {
         setError(typeof err === "string" ? err : String(err));
         updateActiveInstance((instance) => ({
           ...instance,
-          messages:
-            instance.messages[instance.messages.length - 1]?.content === ""
-              ? instance.messages.slice(0, -1)
-              : instance.messages,
+          messagesByTab: {
+            ...instance.messagesByTab,
+            [instance.activeTab]:
+              instance.messagesByTab[instance.activeTab][
+                instance.messagesByTab[instance.activeTab].length - 1
+              ]?.content === ""
+                ? instance.messagesByTab[instance.activeTab].slice(0, -1)
+                : instance.messagesByTab[instance.activeTab],
+          },
         }));
       } finally {
         setIsSending(false);
       }
     },
-    [activeInstance, aiProvider, aiBaseUrl, aiModel, isSending, updateActiveInstance],
+    [
+      activeInstance,
+      aiProvider,
+      aiBaseUrl,
+      aiModel,
+      config,
+      isSending,
+      updateActiveInstance,
+    ],
   );
 
   const sendMessage = useCallback(
@@ -298,7 +464,10 @@ export function useAI() {
   );
 
   const clearMessages = useCallback(() => {
-    updateActiveInstance((instance) => ({ ...instance, messages: [] }));
+    updateActiveInstance((instance) => ({
+      ...instance,
+      messagesByTab: { ...instance.messagesByTab, [instance.activeTab]: [] },
+    }));
     setError(null);
   }, [updateActiveInstance]);
 
@@ -321,6 +490,7 @@ export function useAI() {
     renameInstance,
     deleteInstance,
     attachProblem,
+    selectChatTab,
     clearMessages,
     error,
     setError,

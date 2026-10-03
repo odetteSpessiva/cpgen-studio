@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import { createContext, useContext } from "react";
 import { useAI } from "../hooks/useAI";
-import type { AIInstance, ChatAttachment, ChatMessage, ModelInfo } from "../types";
+import type {
+  AIInstance,
+  ChatAttachment,
+  ChatMessage,
+  ChatTab,
+  ModelInfo,
+} from "../types";
 
 interface AIContextValue {
   keyStatus: Record<string, boolean>;
@@ -22,6 +28,7 @@ interface AIContextValue {
   renameInstance: (id: string, name: string) => void;
   deleteInstance: (id: string) => void;
   attachProblem: (file: ChatAttachment) => void;
+  selectChatTab: (tab: ChatTab) => void;
   clearMessages: () => void;
   error: string | null;
   setError: (
