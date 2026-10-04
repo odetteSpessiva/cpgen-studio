@@ -3,7 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useAIContext } from "../context/AIContext";
 import { useSettingsContext } from "../context/SettingsContext";
-import type { SettingKey } from "../types";
+import type { AIProvider, SettingKey, ThinkingEffort } from "../types";
 import MingwDownloadModal from "./MingwDownloadModal";
 import Section from "./Section";
 
@@ -34,6 +34,15 @@ const AI_PROVIDERS = [
   { label: "Google", value: "google" },
   { label: "Anthropic", value: "anthropic" },
 ];
+
+const THINKING_EFFORTS: ThinkingEffort[] = ["low", "medium", "high"];
+
+const THINKING_BUDGET_HINTS: Record<AIProvider, string> = {
+  openai:
+    "OpenRouter only. Reasoning max tokens; 0 uses the effort level instead.",
+  google: "Thinking tokens. -1 lets the model decide, 0 disables thinking.",
+  anthropic: "Budget tokens. At least 1024 and below max tokens.",
+};
 
 const COMPILER_ARGS_OPTIONS = [
   {
@@ -86,7 +95,7 @@ function useCommittedSetting<T extends number | string | boolean>(
   };
 }
 
-const parseFontSize = (raw: string): number | null => {
+const parseNumber = (raw: string): number | null => {
   if (raw.trim() === "") return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
@@ -182,6 +191,11 @@ export default function Settings() {
     aiProvider,
     aiBaseUrl,
     aiModel,
+    aiJsonMode,
+    aiThinking,
+    aiThinkingEffort,
+    aiThinkingBudget,
+    anthropicMaxTokens,
     onSettingChange,
     error,
     setError,
@@ -202,7 +216,7 @@ export default function Settings() {
     "fontSize",
     fontSize,
     onSettingChange,
-    parseFontSize,
+    parseNumber,
     clampFontSize,
   );
 
@@ -253,6 +267,36 @@ export default function Settings() {
     aiBaseUrl,
     onSettingChange,
     parseString,
+  );
+
+  const aiJsonModeField = useCommittedSetting(
+    `${aiProvider}JsonMode`,
+    aiJsonMode,
+    onSettingChange,
+    (raw) => (raw === "true" ? true : raw === "false" ? false : null),
+  );
+
+  const aiThinkingField = useCommittedSetting(
+    `${aiProvider}Thinking`,
+    aiThinking,
+    onSettingChange,
+    (raw) => (raw === "true" ? true : raw === "false" ? false : null),
+  );
+
+  const aiThinkingBudgetField = useCommittedSetting(
+    `${aiProvider}ThinkingBudget`,
+    aiThinkingBudget,
+    onSettingChange,
+    parseNumber,
+    (n) => Math.round(n),
+  );
+
+  const anthropicMaxTokensField = useCommittedSetting(
+    "anthropicMaxTokens",
+    anthropicMaxTokens,
+    onSettingChange,
+    parseNumber,
+    (n) => Math.max(1, Math.round(n)),
   );
 
   const [apiKeyInput, setApiKeyInput] = useState("");
@@ -531,10 +575,68 @@ export default function Settings() {
             </div>
           </div>
 
+          {aiProvider !== "anthropic" && (
+            <SettingField label="JSON mode" field={aiJsonModeField} boolean>
+              <span className="text-[11px] text-(--text-muted)">
+                Force valid JSON output. Unsupported models may reject it
+              </span>
+            </SettingField>
+          )}
+
           {aiError && (
             <div className="ml-24.25 mb-3 text-[12px] text-red-400">
               {aiError}
             </div>
+          )}
+        </Section>
+
+        <Section title="AI Thinking">
+          <SettingField label="Thinking" field={aiThinkingField} boolean>
+            <span className="text-[11px] text-(--text-muted)">
+              Unsupported models may reject the request
+            </span>
+          </SettingField>
+
+          {aiProvider === "openai" && (
+            <div className={ROW_CLASS}>
+              <label className={LABEL_CLASS}>Effort</label>
+              <div className="flex flex-1 min-w-0 gap-1.5 pt-1">
+                {THINKING_EFFORTS.map((effort) => (
+                  <button
+                    key={effort}
+                    type="button"
+                    onClick={() =>
+                      onSettingChange(`${aiProvider}ThinkingEffort`, effort)
+                    }
+                    className={`px-2 py-1 text-[11px] capitalize rounded border hover:text-(--text-primary) hover:border-(--accent) ${aiThinkingEffort === effort ? "border-(--accent) text-(--text-primary)" : "border-(--border) text-(--text-muted)"}`}
+                  >
+                    {effort}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <SettingField
+            label="Budget"
+            field={aiThinkingBudgetField}
+            inputProps={{ type: "number", step: 1 }}
+          >
+            <div className="mt-1.5 text-[11px] text-(--text-muted)">
+              {THINKING_BUDGET_HINTS[aiProvider]}
+            </div>
+          </SettingField>
+
+          {aiProvider === "anthropic" && (
+            <SettingField
+              label="Max tokens"
+              field={anthropicMaxTokensField}
+              inputProps={{ type: "number", min: 1, step: 1 }}
+            >
+              <div className="mt-1.5 text-[11px] text-(--text-muted)">
+                Output cap per reply, thinking included.
+              </div>
+            </SettingField>
           )}
         </Section>
       </div>

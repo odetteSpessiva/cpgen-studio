@@ -2,14 +2,21 @@ import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
 import { useEffect, useRef, useState } from "react";
 import { invalidateLspConnection } from "../lsp/monacoIntegration";
-import type { AIProvider, SettingKey } from "../types";
+import type { AIProvider, SettingKey, ThinkingEffort } from "../types";
 
 type AIProviderSettings = Record<
   `${AIProvider}BaseUrl` | `${AIProvider}Model`,
   string
 >;
 
-interface SettingsState extends AIProviderSettings {
+type AIJsonModeSettings = Record<`${AIProvider}JsonMode`, boolean>;
+
+type AIThinkingSettings = Record<`${AIProvider}Thinking`, boolean> &
+  Record<`${AIProvider}ThinkingEffort`, ThinkingEffort> &
+  Record<`${AIProvider}ThinkingBudget`, number>;
+
+interface SettingsState
+  extends AIProviderSettings, AIJsonModeSettings, AIThinkingSettings {
   fontSize: number;
   fontFamily: string;
   formatOnSave: boolean;
@@ -18,6 +25,7 @@ interface SettingsState extends AIProviderSettings {
   pythonPath: string;
   clangdPath: string;
   aiProvider: AIProvider;
+  anthropicMaxTokens: number;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -36,6 +44,19 @@ const DEFAULT_SETTINGS: SettingsState = {
   googleModel: "",
   anthropicBaseUrl: "https://api.anthropic.com/v1",
   anthropicModel: "",
+  anthropicMaxTokens: 8192,
+  openaiJsonMode: false,
+  googleJsonMode: false,
+  anthropicJsonMode: false,
+  openaiThinking: false,
+  openaiThinkingEffort: "medium",
+  openaiThinkingBudget: 0,
+  googleThinking: false,
+  googleThinkingEffort: "medium",
+  googleThinkingBudget: -1,
+  anthropicThinking: false,
+  anthropicThinkingEffort: "medium",
+  anthropicThinkingBudget: 2048,
 };
 
 const LSP_SETTING_TO_LANGUAGE: Partial<Record<SettingKey, string>> = {
@@ -124,6 +145,10 @@ export function useSettings() {
     ...settings,
     aiBaseUrl: settings[`${settings.aiProvider}BaseUrl` as const],
     aiModel: settings[`${settings.aiProvider}Model` as const],
+    aiJsonMode: settings[`${settings.aiProvider}JsonMode` as const],
+    aiThinking: settings[`${settings.aiProvider}Thinking` as const],
+    aiThinkingEffort: settings[`${settings.aiProvider}ThinkingEffort` as const],
+    aiThinkingBudget: settings[`${settings.aiProvider}ThinkingBudget` as const],
     isLoaded,
     onSettingChange,
     error,

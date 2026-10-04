@@ -37,12 +37,87 @@ const stripCodeFence = (value: string): string =>
     .replace(/\s*```\s*$/i, "")
     .trim();
 
+const extractJsonObject = (value: string): string | null => {
+  const start = value.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}" && --depth === 0) {
+      return value.slice(start, index + 1);
+    }
+  }
+  return null;
+};
+
+const extractQuotedValue = (value: string, key: string): string | null => {
+  const keyMatch = value.match(
+    new RegExp(`[\"']${key}[\"']\\s*:\\s*([\"'])`, "i"),
+  );
+  if (!keyMatch || keyMatch.index === undefined) return null;
+  const start = keyMatch.index + keyMatch[0].length;
+  const quote = keyMatch[1];
+  let result = "";
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    if (escaped) {
+      result += `\\${character}`;
+      escaped = false;
+    } else if (character === "\\") {
+      escaped = true;
+    } else if (character === quote) {
+      return result;
+    } else {
+      result += character;
+    }
+  }
+  return null;
+};
+
+const decodeExtractedString = (value: string): string => {
+  try {
+    return JSON.parse(`"${value}"`) as string;
+  } catch {
+    try {
+      return JSON.parse(
+        `"${value.replace(/\r?\n/g, "\\n").replace(/\t/g, "\\t")}"`,
+      ) as string;
+    } catch {
+      return value
+        .replace(/\\"/g, '"')
+        .replace(/\\\\n/g, "\\n")
+        .replace(/\\\\r/g, "\\r")
+        .replace(/\\\\t/g, "\\t");
+    }
+  }
+};
+
 const parseResponse = (content: string): ParsedResponse | null => {
   const normalizedContent = stripCodeFence(content);
   const fencedContent = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidates = [
     normalizedContent,
     fencedContent ? stripCodeFence(fencedContent) : undefined,
+    extractJsonObject(normalizedContent),
   ].filter((candidate): candidate is string => Boolean(candidate));
 
   for (const candidate of candidates) {
@@ -85,20 +160,9 @@ const parseResponse = (content: string): ParsedResponse | null => {
   ) {
     return null;
   }
-  let code = normalizedContent
-    .slice(codeStart)
-    .replace(/^[\s\S]*?["']code["']\s*:\s*["']/, "");
-  code = code.replace(/\s*```\s*$/i, "").replace(/["']\s*[,}]\s*$/, "");
-  try {
-    const decoded = JSON.parse(`"${code.replace(/"/g, '\\"')}"`);
-    if (typeof decoded === "string") code = decoded;
-  } catch {
-    code = code
-      .replace(/\\"/g, '"')
-      .replace(/\\\\n/g, "\\n")
-      .replace(/\\\\r/g, "\\r")
-      .replace(/\\\\t/g, "\\t");
-  }
+  const extractedCode = extractQuotedValue(normalizedContent, "code");
+  if (extractedCode === null) return null;
+  const code = decodeExtractedString(extractedCode);
   if (code.trim()) {
     return {
       language: language.toLowerCase() === "python3" ? "python" : language,
@@ -145,7 +209,11 @@ export default function Chat() {
     null,
   );
   const [editingInstanceName, setEditingInstanceName] = useState("");
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollStateRef = useRef(
+    new Map<string, { top: number; atBottom: boolean }>(),
+  );
   const instanceMenuRef = useRef<HTMLDivElement>(null);
   const startedForAttachmentRef = useRef<string | null>(null);
   const activeInstance = instances.find(
@@ -166,8 +234,46 @@ export default function Chat() {
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    let previous: Record<string, unknown> = {};
+    try {
+      previous = JSON.parse(
+        localStorage.getItem("cpgen_ai_instances") ?? "{}",
+      ) as Record<string, unknown>;
+    } catch {
+      // Replace invalid persisted state with the current valid state.
+    }
+    localStorage.setItem(
+      "cpgen_ai_instances",
+      JSON.stringify({ ...previous, activeChatTab: activeTab }),
+    );
+  }, [activeTab]);
+
+  const scrollKey = `${activeInstanceId}:${activeTab}`;
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const saved = scrollStateRef.current.get(scrollKey);
+    if (!saved) {
+      container.scrollTop = container.scrollHeight;
+    } else if (saved.atBottom) {
+      container.scrollTop = container.scrollHeight;
+    } else {
+      container.scrollTop = saved.top;
+    }
+  }, [messages, scrollKey]);
+
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const atBottom =
+      container.scrollHeight - container.clientHeight - container.scrollTop <=
+      4;
+    scrollStateRef.current.set(scrollKey, {
+      top: container.scrollTop,
+      atBottom,
+    });
+  };
 
   useEffect(() => {
     if (!isInstanceMenuOpen) return;
@@ -414,7 +520,11 @@ export default function Chat() {
           </div>
         </header>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-5">
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className="flex-1 min-h-0 overflow-y-auto p-5"
+        >
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-(--text-muted)">
               <Bot className="w-8 h-8 mb-3 opacity-60" />
@@ -429,7 +539,7 @@ export default function Chat() {
                 const isUser = message.role === "user";
                 return (
                   <div
-                    key={`${message.role}-${index}`}
+                    key={`${activeInstanceId}-${activeTab}-${message.role}-${index}`}
                     className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
                   >
                     {!isUser && (
@@ -437,10 +547,7 @@ export default function Chat() {
                     )}
                     <div className="max-w-[80%]">
                       {!isUser && message.thinking && (
-                        <details
-                          open
-                          className="mb-2 rounded-lg border border-(--border) bg-(--bg-secondary) text-xs text-(--text-muted)"
-                        >
+                        <details className="mb-2 rounded-lg border border-(--border) bg-(--bg-secondary) text-xs text-(--text-muted)">
                           <summary className="cursor-pointer select-none px-3 py-1.5">
                             Thinking
                           </summary>

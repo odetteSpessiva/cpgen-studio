@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext } from "react";
 import { useSettings } from "../hooks/useSettings";
-import { AIProvider, SettingKey } from "../types";
+import { AIProvider, SettingKey, ThinkingEffort } from "../types";
 
 interface SettingsContextValue {
   fontSize: number;
@@ -14,6 +14,11 @@ interface SettingsContextValue {
   aiProvider: AIProvider;
   aiBaseUrl: string;
   aiModel: string;
+  aiJsonMode: boolean;
+  aiThinking: boolean;
+  aiThinkingEffort: ThinkingEffort;
+  aiThinkingBudget: number;
+  anthropicMaxTokens: number;
   onSettingChange: (key: SettingKey, value: number | string | boolean) => void;
   error: string | null;
   setError: (

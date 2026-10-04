@@ -30,10 +30,17 @@ export type SettingKey =
   | "pythonPath"
   | "clangdPath"
   | "aiProvider"
+  | "anthropicMaxTokens"
   | `${AIProvider}BaseUrl`
-  | `${AIProvider}Model`;
+  | `${AIProvider}Model`
+  | `${AIProvider}JsonMode`
+  | `${AIProvider}Thinking`
+  | `${AIProvider}ThinkingEffort`
+  | `${AIProvider}ThinkingBudget`;
 
 export type AIProvider = "openai" | "google" | "anthropic";
+
+export type ThinkingEffort = "low" | "medium" | "high";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";

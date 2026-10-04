@@ -18,6 +18,7 @@ use generation::{generate_tests, generate_tests_from_schema, preview_schema};
 use lsp::{lsp_kill, lsp_send, lsp_start, GppTripleState, LspState};
 use mingw_installer::{cancel_mingw, check_compiler, download_mingw, DownloadState};
 use std::{collections::HashMap, sync::Mutex};
+use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_window_state::StateFlags;
@@ -33,6 +34,72 @@ fn show_window(window: tauri::Window) {
         .get_webview_window("main")
         .expect("main window not found");
     win.show().expect("failed to show main window");
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GenerationNotificationPayload {
+    instance_id: String,
+    chat_tab: String,
+}
+
+#[tauri::command]
+fn send_generation_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    instance_id: String,
+    chat_tab: String,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let payload = GenerationNotificationPayload {
+            instance_id,
+            chat_tab,
+        };
+        let callback_app = app.clone();
+        tauri_winrt_notification::Toast::new("me.chisa.cpgen-studio")
+            .title(&title)
+            .text1(&body)
+            .on_activated(move |_| {
+                let _ = callback_app.emit("generation-notification-clicked", &payload);
+                Ok(())
+            })
+            .show()
+            .map_err(|error| format!("failed to show generation notification: {error}"))?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let payload = GenerationNotificationPayload {
+            instance_id,
+            chat_tab,
+        };
+        let callback_app = app.clone();
+        let mut notification = notify_rust::Notification::new();
+        notification
+            .summary(&title)
+            .body(&body)
+            .action("default", "Open CPGen Studio");
+        let handle = notification
+            .show()
+            .map_err(|error| format!("failed to show generation notification: {error}"))?;
+        std::thread::spawn(move || {
+            handle.wait_for_action(|action| {
+                if action == "default" {
+                    let _ = callback_app.emit("generation-notification-clicked", &payload);
+                }
+            });
+        });
+        return Ok(());
+    }
+
+    #[cfg(all(not(windows), not(target_os = "linux")))]
+    {
+        let _ = (app, title, body, instance_id, chat_tab);
+        Err("native generation notifications are only supported on Windows".to_string())
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -54,6 +121,7 @@ pub fn run() {
             read_workspace_file,
             pick_workspace_file,
             show_window,
+            send_generation_notification,
             pick_directory,
             generate_tests,
             generate_tests_from_schema,

@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { tabSlot } from "../types";
+import { useAIContext } from "../context/AIContext";
+import type { ChatTab } from "../types";
 
 import {
   Group,
@@ -15,6 +19,7 @@ import Settings from "./Settings";
 import Sidebar from "./sideBar";
 
 export default function CPGenStudio() {
+  const { selectInstance, selectChatTab } = useAIContext();
   useEffect(() => {
     invoke("show_window");
   }, []);
@@ -23,7 +28,52 @@ export default function CPGenStudio() {
     id: "cpgen_main_layout",
   });
 
-  const [activeTab, setActiveTab] = useState<tabSlot>("editor");
+  const [activeTab, setActiveTab] = useState<tabSlot>(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem("cpgen_ai_instances") ?? "{}",
+      ) as { activePage?: tabSlot };
+      return saved.activePage ?? "editor";
+    } catch {
+      return "editor";
+    }
+  });
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<{ instanceId: string; chatTab: ChatTab }>(
+      "generation-notification-clicked",
+      (event) => {
+        selectInstance(event.payload.instanceId);
+        selectChatTab(
+          event.payload.chatTab === "solution" ? "solution" : "problem",
+        );
+        setActiveTab("chat");
+        void getCurrentWindow().show();
+        void getCurrentWindow().setFocus();
+      },
+    ).then((removeListener) => {
+      unlisten = removeListener;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [selectChatTab, selectInstance]);
+
+  useEffect(() => {
+    let previous: Record<string, unknown> = {};
+    try {
+      previous = JSON.parse(
+        localStorage.getItem("cpgen_ai_instances") ?? "{}",
+      ) as Record<string, unknown>;
+    } catch {
+      // Replace invalid persisted state with the current valid state.
+    }
+    localStorage.setItem(
+      "cpgen_ai_instances",
+      JSON.stringify({ ...previous, activePage: activeTab }),
+    );
+  }, [activeTab]);
 
   return (
     <div className="w-full h-full min-h-0 flex flex-row overflow-hidden bg-background">

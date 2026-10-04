@@ -13,6 +13,43 @@ import type {
 
 const INSTANCES_STORAGE_KEY = "cpgen_ai_instances";
 
+const notifyGenerationComplete = async (
+  instanceName: string,
+  instanceId: string,
+  tab: ChatTab,
+) => {
+  let persisted: Partial<PersistedAIState> = {};
+  try {
+    persisted = JSON.parse(
+      localStorage.getItem(INSTANCES_STORAGE_KEY) ?? "{}",
+    ) as Partial<PersistedAIState>;
+  } catch {
+    // The completion still warrants a notification when persisted state is invalid.
+  }
+  const isCurrentInstance = persisted.activeInstanceId === instanceId;
+  const isChatPageActive = persisted.activePage === "chat";
+  const isCurrentChatTab = persisted.activeChatTab === tab;
+  if (
+    isChatPageActive &&
+    isCurrentInstance &&
+    isCurrentChatTab &&
+    document.hasFocus()
+  ) {
+    return;
+  }
+
+  try {
+    await invoke("send_generation_notification", {
+      title: "Generation complete",
+      body: `${instanceName} ${tab} generation is ready.`,
+      instanceId,
+      chatTab: tab,
+    });
+  } catch (err) {
+    console.error("Failed to show generation notification:", err);
+  }
+};
+
 const createDefaultInstance = (): AIInstance => ({
   id: crypto.randomUUID(),
   name: "New instance",
@@ -21,57 +58,64 @@ const createDefaultInstance = (): AIInstance => ({
   messagesByTab: { problem: [], solution: [] },
 });
 
-const normalizeInstance = (
-  value: AIInstance & { messages?: ChatMessage[] },
-): AIInstance => ({
+const normalizeInstance = (value: AIInstance): AIInstance => ({
   id: value.id,
   name: value.name,
   problemFile: value.problemFile,
-  activeTab: value.activeTab === "solution" ? "solution" : "problem",
-  messagesByTab: value.messagesByTab ?? {
-    problem: value.messages ?? [],
-    solution: [],
-  },
+  activeTab: value.activeTab,
+  messagesByTab: value.messagesByTab,
 });
 
 interface PersistedAIState {
   instances: AIInstance[];
   activeInstanceId: string;
+  activePage: "editor" | "settings" | "chat";
+  activeChatTab: ChatTab;
 }
 
 const loadPersistedState = (): PersistedAIState => {
-  const fallback = createDefaultInstance();
   try {
     const saved = localStorage.getItem(INSTANCES_STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved) as
-        AIInstance[] | Partial<PersistedAIState>;
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const instances = parsed.map(normalizeInstance);
-        return { instances, activeInstanceId: instances[0].id };
-      }
+      const parsed = JSON.parse(saved) as PersistedAIState;
       if (
-        !Array.isArray(parsed) &&
         Array.isArray(parsed.instances) &&
-        parsed.instances.length > 0
+        parsed.instances.length > 0 &&
+        parsed.instances.some(
+          (instance) => instance.id === parsed.activeInstanceId,
+        ) &&
+        ["editor", "settings", "chat"].includes(parsed.activePage) &&
+        ["problem", "solution"].includes(parsed.activeChatTab)
       ) {
-        const instances = parsed.instances.map(normalizeInstance);
-        const activeInstanceId =
-          typeof parsed.activeInstanceId === "string" &&
-          instances.some((instance) => instance.id === parsed.activeInstanceId)
-            ? parsed.activeInstanceId
-            : instances[0].id;
-        return { instances, activeInstanceId };
+        return {
+          ...parsed,
+          instances: parsed.instances.map(normalizeInstance),
+        };
       }
     }
   } catch (err) {
     console.error("Failed to restore AI state:", err);
   }
-  return { instances: [fallback], activeInstanceId: fallback.id };
+  const fallback = createDefaultInstance();
+  return {
+    instances: [fallback],
+    activeInstanceId: fallback.id,
+    activePage: "editor",
+    activeChatTab: "problem",
+  };
 };
 
 export function useAI() {
-  const { aiProvider, aiBaseUrl, aiModel } = useSettingsContext();
+  const {
+    aiProvider,
+    aiBaseUrl,
+    aiModel,
+    aiJsonMode,
+    aiThinking,
+    aiThinkingEffort,
+    aiThinkingBudget,
+    anthropicMaxTokens,
+  } = useSettingsContext();
   const { config } = usePipelineContext();
   const [keyStatus, setKeyStatus] = useState<Record<string, boolean>>({});
   const [models, setModels] = useState<Record<string, ModelInfo[]>>({});
@@ -93,9 +137,17 @@ export function useAI() {
   const messages = activeInstance.messagesByTab[activeInstance.activeTab];
 
   useEffect(() => {
+    let previous: Partial<PersistedAIState> = {};
+    try {
+      previous = JSON.parse(
+        localStorage.getItem(INSTANCES_STORAGE_KEY) ?? "{}",
+      ) as Partial<PersistedAIState>;
+    } catch {
+      // Replace invalid persisted state with the current valid state.
+    }
     localStorage.setItem(
       INSTANCES_STORAGE_KEY,
-      JSON.stringify({ instances, activeInstanceId }),
+      JSON.stringify({ ...previous, instances, activeInstanceId }),
     );
   }, [activeInstanceId, instances]);
 
@@ -290,6 +342,9 @@ Rules:
 - "code" is a single JSON string: escape newlines as \\n, quotes as \\", and
   backslashes as \\\\.
 - Put all explanations inside code comments, never outside the object.
+- Do not add anything outside of the provided format like explanation, notes, etc....
+- Return the {"language":"text","code":"<response>"} block when you are unable
+  to read the attatched problem, do not guess.
 
 Example of a valid response:
 {"language":"cpp","code":"#include <iostream>\\nint main() {\\n  std::cout << 1 << \\"\\\\n\\";\\n}\\n"}
@@ -395,13 +450,12 @@ ${responseFormat}
             ),
           },
         }));
-      let done = false;
       const onDelta = new Channel<{
         kind: "content" | "thinking";
         text: string;
       }>();
       onDelta.onmessage = (delta) => {
-        if (done) return;
+        console.log("[AI delta]", delta);
         if (delta.kind === "thinking") {
           setThinking((thinking) => thinking + delta.text);
         } else {
@@ -415,12 +469,22 @@ ${responseFormat}
           model: aiModel,
           messages: history,
           attachment: activeInstance.problemFile,
+          options: {
+            thinking: aiThinking,
+            effort: aiThinkingEffort,
+            thinkingBudget: aiThinkingBudget,
+            maxTokens: anthropicMaxTokens,
+            jsonMode: aiJsonMode,
+          },
           onDelta,
         });
-        done = true;
-        setReply(() => reply);
+        setReply((current) => reply || current);
+        await notifyGenerationComplete(
+          activeInstance.name,
+          activeInstance.id,
+          activeInstance.activeTab,
+        );
       } catch (err) {
-        done = true;
         setError(typeof err === "string" ? err : String(err));
         updateActiveInstance((instance) => ({
           ...instance,
@@ -443,6 +507,11 @@ ${responseFormat}
       aiProvider,
       aiBaseUrl,
       aiModel,
+      aiJsonMode,
+      aiThinking,
+      aiThinkingEffort,
+      aiThinkingBudget,
+      anthropicMaxTokens,
       config,
       isSending,
       updateActiveInstance,

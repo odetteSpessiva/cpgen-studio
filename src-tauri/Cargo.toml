@@ -40,3 +40,5 @@ hex = "0.4.3"
 zip = "8.6.0"
 walkdir = "2.5"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+tauri-winrt-notification = "0.8.1"
+notify-rust = "4.18.1"
