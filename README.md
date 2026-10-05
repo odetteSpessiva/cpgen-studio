@@ -8,7 +8,7 @@
 
 A desktop app for building test case generation schemas for competitive programming problems, built with Tauri.
 
-> **Status**: alpha (`0.2.6-alpha.1`). Expect breaking changes to the workspace/schema format until `1.0`. See [ROADMAP.md](./ROADMAP.md) for what's planned.
+> **Status**: alpha (`0.3.0-alpha.1`). Expect breaking changes to the workspace/schema format until `1.0`. See [ROADMAP.md](./ROADMAP.md) for what's planned.
 
 ## What it does
 
