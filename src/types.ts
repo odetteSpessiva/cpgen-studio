@@ -30,6 +30,7 @@ export type SettingKey =
   | "pythonPath"
   | "clangdPath"
   | "aiProvider"
+  | "aiAutoMode"
   | "anthropicMaxTokens"
   | `${AIProvider}BaseUrl`
   | `${AIProvider}Model`

@@ -189,6 +189,7 @@ export default function Settings() {
     pythonPath,
     clangdPath,
     aiProvider,
+    aiAutoMode,
     aiBaseUrl,
     aiModel,
     aiJsonMode,
@@ -272,6 +273,13 @@ export default function Settings() {
   const aiJsonModeField = useCommittedSetting(
     `${aiProvider}JsonMode`,
     aiJsonMode,
+    onSettingChange,
+    (raw) => (raw === "true" ? true : raw === "false" ? false : null),
+  );
+
+  const aiAutoModeField = useCommittedSetting(
+    "aiAutoMode",
+    aiAutoMode,
     onSettingChange,
     (raw) => (raw === "true" ? true : raw === "false" ? false : null),
   );
@@ -461,7 +469,7 @@ export default function Settings() {
           />
         </Section>
 
-        <Section title="AI Credentials">
+        <Section title="AI">
           <div className={ROW_CLASS}>
             <label className={LABEL_CLASS}>Provider</label>
             <div className="flex flex-1 min-w-0 gap-1.5 pt-1">
@@ -588,9 +596,12 @@ export default function Settings() {
               {aiError}
             </div>
           )}
-        </Section>
+          <SettingField label="Auto mode" field={aiAutoModeField} boolean>
+            <span className="text-[11px] text-(--text-muted)">
+              Save generated files under ~/cpgen-studio automatically
+            </span>
+          </SettingField>
 
-        <Section title="AI Thinking">
           <SettingField label="Thinking" field={aiThinkingField} boolean>
             <span className="text-[11px] text-(--text-muted)">
               Unsupported models may reject the request

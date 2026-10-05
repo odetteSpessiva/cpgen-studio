@@ -25,6 +25,7 @@ interface SettingsState
   pythonPath: string;
   clangdPath: string;
   aiProvider: AIProvider;
+  aiAutoMode: boolean;
   anthropicMaxTokens: number;
 }
 
@@ -38,6 +39,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   pythonPath: "python",
   clangdPath: "clangd",
   aiProvider: "openai",
+  aiAutoMode: false,
   openaiBaseUrl: "https://api.openai.com/v1",
   openaiModel: "",
   googleBaseUrl: "https://generativelanguage.googleapis.com/v1beta",

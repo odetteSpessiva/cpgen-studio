@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAIContext } from "../context/AIContext";
+import { useSettingsContext } from "../context/SettingsContext";
 import { useWorkspaceContext } from "../context/WorkspaceContext";
 import type { ChatAttachment, ChatTab } from "../types";
 
@@ -69,7 +70,7 @@ const extractJsonObject = (value: string): string | null => {
 
 const extractQuotedValue = (value: string, key: string): string | null => {
   const keyMatch = value.match(
-    new RegExp(`[\"']${key}[\"']\\s*:\\s*([\"'])`, "i"),
+    new RegExp(`["']${key}["']\\s*:\\s*(["'])`, "i"),
   );
   if (!keyMatch || keyMatch.index === undefined) return null;
   const start = keyMatch.index + keyMatch[0].length;
@@ -201,9 +202,14 @@ export default function Chat() {
     selectChatTab,
     error,
   } = useAIContext();
-  const { saveGeneratedFile } = useWorkspaceContext();
+  const { saveGeneratedFile, loadWorkspaceFile, setGeneratorMode } =
+    useWorkspaceContext();
+  const { aiAutoMode } = useSettingsContext();
   const [input, setInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [savedSlot, setSavedSlot] = useState<"generator" | "solution" | null>(
+    null,
+  );
   const [isInstanceMenuOpen, setIsInstanceMenuOpen] = useState(false);
   const [editingInstanceId, setEditingInstanceId] = useState<string | null>(
     null,
@@ -339,11 +345,31 @@ export default function Chat() {
     if (!generated) return;
     setIsSaving(true);
     try {
-      await saveGeneratedFile(
-        generated.code,
-        generated.language,
-        activeTab === "solution" ? "solution" : "generator",
-      );
+      const slot = activeTab === "solution" ? "solution" : "generator";
+      let saved = false;
+      if (aiAutoMode && activeInstance) {
+        const path = await invoke<string>("save_ai_generated_file", {
+          contents: generated.code,
+          language: generated.language,
+          slot,
+          instanceId: activeInstance.id,
+          instanceName: activeInstance.name,
+        });
+        await loadWorkspaceFile(slot, path);
+        if (slot === "generator") setGeneratorMode("files");
+        console.info(`Saved AI file to ${path}`);
+        saved = true;
+      } else {
+        saved = await saveGeneratedFile(
+          generated.code,
+          generated.language,
+          slot,
+        );
+      }
+      if (saved) {
+        setSavedSlot(slot);
+        window.setTimeout(() => setSavedSlot(null), 3000);
+      }
     } catch (saveError) {
       console.error("Failed to save generated file:", saveError);
     } finally {
@@ -578,7 +604,16 @@ export default function Chat() {
                         title={`Save and use as ${activeTab}`}
                         aria-label={`Save and use as ${activeTab}`}
                       >
-                        <Save className="w-4 h-4" />
+                        <span className="flex h-4 w-4 items-center justify-center">
+                          {savedSlot ===
+                          (activeTab === "solution"
+                            ? "solution"
+                            : "generator") ? (
+                            <Check className="h-4 w-4" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                        </span>
                       </button>
                     )}
                     {isUser && (
@@ -609,6 +644,28 @@ export default function Chat() {
             {error}
           </p>
         )}
+        {messages[messages.length - 1]?.role === "assistant" &&
+          (isSending || messages[messages.length - 1]?.content) && (
+            <p className="flex items-center gap-1.5 px-5 pb-2 text-[11px] text-(--text-muted)">
+              {isSending ? (
+                <>
+                  <span
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-(--accent)"
+                    aria-hidden="true"
+                  />
+                  Receiving response...
+                </>
+              ) : (
+                <>
+                  <Check
+                    className="h-3 w-3 text-(--accent)"
+                    aria-hidden="true"
+                  />
+                  Response complete
+                </>
+              )}
+            </p>
+          )}
 
         <form
           onSubmit={handleSubmit}

@@ -39,6 +39,97 @@ fn infer_language(path: &Path) -> String {
     }
 }
 
+fn ai_instance_directory(instance_id: &str, instance_name: &str) -> Result<PathBuf, String> {
+    let home = std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+        .ok_or_else(|| "Unable to determine user home directory".to_string())?;
+    let safe_name: String = instance_name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | ' ') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .replace(' ', "_");
+    let safe_name = if safe_name.is_empty() {
+        "instance"
+    } else {
+        &safe_name
+    };
+    Ok(home
+        .join("cpgen-studio")
+        .join(format!("{safe_name}-{instance_id}")))
+}
+
+#[tauri::command]
+pub(crate) fn save_ai_generated_file(
+    contents: String,
+    language: String,
+    slot: String,
+    instance_id: String,
+    instance_name: String,
+) -> Result<String, String> {
+    let extension = match language.trim().to_ascii_lowercase().as_str() {
+        "python" => "py",
+        "cpp" | "c++" => "cpp",
+        "javascript" => "js",
+        "typescript" => "ts",
+        _ => "txt",
+    };
+    let prefix = if slot == "solution" { "sol" } else { "gen" };
+    let directory = ai_instance_directory(&instance_id, &instance_name)?;
+    fs::create_dir_all(&directory).map_err(|error| {
+        format!(
+            "failed to create AI instance directory {}: {error}",
+            directory.display()
+        )
+    })?;
+    let path = directory.join(format!("{prefix}.{extension}"));
+    fs::write(&path, contents)
+        .map_err(|error| format!("failed to save generated file {}: {error}", path.display()))?;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+pub(crate) fn delete_ai_instance_directory(
+    instance_id: String,
+    instance_name: String,
+) -> Result<(), String> {
+    let directory = ai_instance_directory(&instance_id, &instance_name)?;
+    let parent = directory
+        .parent()
+        .ok_or_else(|| "failed to determine AI instance directory parent".to_string())?;
+    if parent.exists() {
+        let suffix = format!("-{instance_id}");
+        for entry in fs::read_dir(parent)
+            .map_err(|error| format!("failed to read AI instance directory parent: {error}"))?
+        {
+            let entry = entry
+                .map_err(|error| format!("failed to inspect AI instance directory: {error}"))?;
+            let path = entry.path();
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(&suffix))
+            {
+                fs::remove_dir_all(&path).map_err(|error| {
+                    format!(
+                        "failed to remove AI instance directory {}: {error}",
+                        path.display()
+                    )
+                })?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn build_workspace_file(path: PathBuf) -> Result<WorkspaceFilePayload, String> {
     let value = std::fs::read_to_string(&path)
         .map_err(|error| format!("failed to read {}: {}", path.display(), error))?;

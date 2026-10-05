@@ -71,6 +71,10 @@ interface PersistedAIState {
   activeInstanceId: string;
   activePage: "editor" | "settings" | "chat";
   activeChatTab: ChatTab;
+  pendingGeneration?: {
+    instanceId: string;
+    tab: ChatTab;
+  };
 }
 
 const loadPersistedState = (): PersistedAIState => {
@@ -87,9 +91,26 @@ const loadPersistedState = (): PersistedAIState => {
         ["editor", "settings", "chat"].includes(parsed.activePage) &&
         ["problem", "solution"].includes(parsed.activeChatTab)
       ) {
+        const instances = parsed.instances.map(normalizeInstance);
+        if (parsed.pendingGeneration) {
+          const pendingInstance = instances.find(
+            (instance) => instance.id === parsed.pendingGeneration?.instanceId,
+          );
+          if (pendingInstance) {
+            const pendingMessages =
+              pendingInstance.messagesByTab[parsed.pendingGeneration.tab];
+            if (
+              pendingMessages[pendingMessages.length - 1]?.role === "assistant"
+            ) {
+              pendingInstance.messagesByTab[parsed.pendingGeneration.tab] =
+                pendingMessages.slice(0, -1);
+            }
+          }
+        }
         return {
           ...parsed,
-          instances: parsed.instances.map(normalizeInstance),
+          instances,
+          pendingGeneration: undefined,
         };
       }
     }
@@ -128,6 +149,9 @@ export function useAI() {
     persistedState.activeInstanceId,
   );
   const [isSending, setIsSending] = useState(false);
+  const [pendingGeneration, setPendingGeneration] = useState<
+    PersistedAIState["pendingGeneration"]
+  >(persistedState.pendingGeneration);
   const [error, setError] = useState<string | null>(null);
   const storePromiseRef = useRef<Promise<Store | null>>(null);
 
@@ -147,9 +171,14 @@ export function useAI() {
     }
     localStorage.setItem(
       INSTANCES_STORAGE_KEY,
-      JSON.stringify({ ...previous, instances, activeInstanceId }),
+      JSON.stringify({
+        ...previous,
+        instances,
+        activeInstanceId,
+        pendingGeneration,
+      }),
     );
-  }, [activeInstanceId, instances]);
+  }, [activeInstanceId, instances, pendingGeneration]);
 
   const updateActiveInstance = useCallback(
     (update: (instance: AIInstance) => AIInstance) => {
@@ -202,8 +231,17 @@ export function useAI() {
     (id: string) => {
       setInstances((prev) => {
         if (prev.length === 1) return prev;
+        const deleted = prev.find((instance) => instance.id === id);
         const index = prev.findIndex((instance) => instance.id === id);
         if (index === -1) return prev;
+        if (deleted) {
+          void invoke("delete_ai_instance_directory", {
+            instanceId: deleted.id,
+            instanceName: deleted.name,
+          }).catch((err) =>
+            console.error("Failed to remove AI instance directory:", err),
+          );
+        }
         const next = prev.filter((instance) => instance.id !== id);
         if (id === activeInstanceId) {
           setActiveInstanceId(next[Math.max(0, index - 1)].id);
@@ -344,7 +382,7 @@ Rules:
 - Put all explanations inside code comments, never outside the object.
 - Do not add anything outside of the provided format like explanation, notes, etc....
 - Return the {"language":"text","code":"<response>"} block when you are unable
-  to read the attatched problem, do not guess.
+  to read the attatched problem or when any clarification is required, do not guess.
 
 Example of a valid response:
 {"language":"cpp","code":"#include <iostream>\\nint main() {\\n  std::cout << 1 << \\"\\\\n\\";\\n}\\n"}
@@ -407,6 +445,10 @@ ${responseFormat}
       ];
       setError(null);
       setIsSending(true);
+      setPendingGeneration({
+        instanceId: activeInstance.id,
+        tab: activeInstance.activeTab,
+      });
       const nextMessages = [
         ...baseMessages,
         { role: "user" as const, content },
@@ -499,6 +541,7 @@ ${responseFormat}
           },
         }));
       } finally {
+        setPendingGeneration(undefined);
         setIsSending(false);
       }
     },

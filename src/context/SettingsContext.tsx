@@ -12,6 +12,7 @@ interface SettingsContextValue {
   pythonPath: string;
   clangdPath: string;
   aiProvider: AIProvider;
+  aiAutoMode: boolean;
   aiBaseUrl: string;
   aiModel: string;
   aiJsonMode: boolean;

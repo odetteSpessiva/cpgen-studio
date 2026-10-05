@@ -24,8 +24,9 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_window_state::StateFlags;
 use watcher::{unwatch_file, watch_file, WatcherState};
 use workspace::{
-    export_tests, load_schema_file, pick_directory, pick_workspace_file, read_workspace_file,
-    save_file, save_workspace_file,
+    delete_ai_instance_directory, export_tests, load_schema_file, pick_directory,
+    pick_workspace_file, read_workspace_file, save_ai_generated_file, save_file,
+    save_workspace_file,
 };
 
 #[tauri::command]
@@ -127,6 +128,8 @@ pub fn run() {
             generate_tests_from_schema,
             preview_schema,
             save_workspace_file,
+            save_ai_generated_file,
+            delete_ai_instance_directory,
             save_file,
             load_schema_file,
             export_tests,
