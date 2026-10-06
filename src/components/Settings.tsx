@@ -7,7 +7,8 @@ import type { AIProvider, SettingKey, ThinkingEffort } from "../types";
 import MingwDownloadModal from "./MingwDownloadModal";
 import Section from "./Section";
 
-const ROW_CLASS = "flex items-center gap-3 mb-3 items-start";
+const ROW_CLASS =
+  "flex flex-wrap items-center gap-3 mb-3 items-start min-w-0";
 const LABEL_CLASS =
   "w-[85px] text-[13px] text-(--text-secondary) shrink-0 text-right pt-1.5";
 const INPUT_CLASS =
@@ -132,7 +133,7 @@ function SettingField<T extends SettingValue>({
 }: SettingFieldProps<T>) {
   if (boolean) {
     return (
-      <div className="flex items-center gap-3 mb-3 whitespace-nowrap">
+      <div className="flex flex-wrap items-center gap-3 mb-3 min-w-0">
         <label className="w-21.25 text-[13px] text-(--text-secondary) shrink-0 text-right whitespace-nowrap">
           {label}
         </label>
@@ -354,8 +355,8 @@ export default function Settings() {
   }, []);
 
   return (
-    <div className="h-full flex items-center justify-center p-6 bg-(--bg-primary)">
-      <div className="w-full h-full rounded-lg border border-(--border) bg-(--bg-tertiary) p-6">
+    <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto p-6 bg-(--bg-primary)">
+      <div className="box-border w-full min-h-full min-w-0 overflow-hidden rounded-lg border border-(--border) bg-(--bg-tertiary) p-6">
         {error && (
           <div className="mb-4 px-3 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 text-[13px] flex items-center justify-between gap-2">
             <span>{error}</span>
@@ -472,7 +473,7 @@ export default function Settings() {
         <Section title="AI">
           <div className={ROW_CLASS}>
             <label className={LABEL_CLASS}>Provider</label>
-            <div className="flex flex-1 min-w-0 gap-1.5 pt-1">
+            <div className="flex flex-1 min-w-0 flex-wrap gap-1.5 pt-1">
               {AI_PROVIDERS.map((opt) => (
                 <button
                   key={opt.value}
@@ -501,7 +502,7 @@ export default function Settings() {
 
           <div className={ROW_CLASS}>
             <label className={LABEL_CLASS}>API key</label>
-            <div className="flex flex-1 min-w-0 gap-1.5">
+            <div className="flex flex-1 min-w-0 flex-wrap gap-1.5">
               <div className="relative flex-1 min-w-0">
                 <input
                   className={`${INPUT_CLASS} pr-8 [&::-ms-reveal]:hidden`}
@@ -547,9 +548,9 @@ export default function Settings() {
 
           <div className={ROW_CLASS}>
             <label className={LABEL_CLASS}>Model</label>
-            <div className="flex flex-1 min-w-0 gap-1.5">
+            <div className="flex flex-1 min-w-0 flex-wrap gap-1.5">
               <select
-                className={INPUT_CLASS}
+                className={`${INPUT_CLASS} min-w-0 flex-1`}
                 value={aiModel}
                 onChange={(event) =>
                   onSettingChange(`${aiProvider}Model`, event.target.value)
@@ -611,7 +612,7 @@ export default function Settings() {
           {aiProvider === "openai" && (
             <div className={ROW_CLASS}>
               <label className={LABEL_CLASS}>Effort</label>
-              <div className="flex flex-1 min-w-0 gap-1.5 pt-1">
+              <div className="flex flex-1 min-w-0 flex-wrap gap-1.5 pt-1">
                 {THINKING_EFFORTS.map((effort) => (
                   <button
                     key={effort}
