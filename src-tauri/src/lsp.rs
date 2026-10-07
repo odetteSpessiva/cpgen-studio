@@ -8,6 +8,9 @@ use tokio::{
     sync::Mutex,
 };
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Serialize, Clone)]
 struct LspMessagePayload {
     language: String,
@@ -117,7 +120,13 @@ pub async fn lsp_start(
         vec!["--fallback-style=Google"]
     };
 
-    let mut child = Command::new(&program)
+    let mut command = Command::new(&program);
+    #[cfg(target_os = "windows")]
+    if language == "cpp" {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = command
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
