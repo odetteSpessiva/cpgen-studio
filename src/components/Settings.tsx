@@ -7,8 +7,7 @@ import type { AIProvider, SettingKey, ThinkingEffort } from "../types";
 import MingwDownloadModal from "./MingwDownloadModal";
 import Section from "./Section";
 
-const ROW_CLASS =
-  "flex flex-wrap items-center gap-3 mb-3 items-start min-w-0";
+const ROW_CLASS = "flex flex-wrap items-center gap-3 mb-3 items-start min-w-0";
 const LABEL_CLASS =
   "w-[85px] text-[13px] text-(--text-secondary) shrink-0 text-right pt-1.5";
 const INPUT_CLASS =

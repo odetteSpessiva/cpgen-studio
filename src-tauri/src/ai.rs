@@ -89,7 +89,7 @@ struct ModelEntry {
     capabilities: serde_json::Value,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ModelInfo {
     id: String,
@@ -190,7 +190,7 @@ pub(crate) async fn list_models(
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_key_input, validate_key_name};
+    use super::*;
 
     #[test]
     fn rejects_empty_key_name() {
@@ -208,5 +208,171 @@ mod tests {
     fn accepts_valid_input() {
         assert!(validate_key_name("openai").is_ok());
         assert!(validate_key_input("openai", "sk-test").is_ok());
+    }
+
+    #[test]
+    fn accepts_key_name_with_surrounding_whitespace() {
+        assert!(validate_key_name("  openai  ").is_ok());
+    }
+
+    #[test]
+    fn accepts_whitespace_only_value() {
+        // Only a completely empty value is rejected.
+        assert!(validate_key_input("openai", " ").is_ok());
+    }
+
+    #[test]
+    fn name_is_validated_before_value() {
+        let result = validate_key_input("", "");
+        assert!(matches!(result, Err(e) if e.contains("name")));
+    }
+
+    #[test]
+    fn save_key_rejects_invalid_input_before_touching_keychain() {
+        let empty_name = tauri::async_runtime::block_on(save_key(" ".to_string(), "v".to_string()));
+        assert!(matches!(empty_name, Err(e) if e.contains("name")));
+
+        let empty_value =
+            tauri::async_runtime::block_on(save_key("openai".to_string(), String::new()));
+        assert!(matches!(empty_value, Err(e) if e.contains("Value")));
+    }
+
+    #[test]
+    fn has_get_delete_reject_empty_key_name() {
+        let has = tauri::async_runtime::block_on(has_key(" ".to_string()));
+        assert!(matches!(has, Err(e) if e.contains("name")));
+
+        let get = tauri::async_runtime::block_on(get_key(" ".to_string()));
+        assert!(matches!(get, Err(e) if e.contains("name")));
+
+        let delete = tauri::async_runtime::block_on(delete_key(" ".to_string()));
+        assert!(matches!(delete, Err(e) if e.contains("name")));
+    }
+
+    #[test]
+    fn save_key_succeeds() {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let result =
+            tauri::async_runtime::block_on(save_key("openai".to_string(), "sk-test".to_string()));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn missing_key_is_reported_as_absent() {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let has = tauri::async_runtime::block_on(has_key("openai".to_string()));
+        assert!(matches!(has, Ok(false)));
+
+        let get = tauri::async_runtime::block_on(get_key("openai".to_string()));
+        assert!(matches!(get, Ok(None)));
+    }
+
+    #[test]
+    fn deleting_missing_key_is_ok() {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let result = tauri::async_runtime::block_on(delete_key("openai".to_string()));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn parses_openai_models_response() {
+        let parsed: ModelsResponse =
+            serde_json::from_str(r#"{"data":[{"id":"gpt-4o"},{"id":"gpt-4o-mini"}]}"#).unwrap();
+        assert_eq!(parsed.data.len(), 2);
+        assert_eq!(parsed.data[0].id.as_deref(), Some("gpt-4o"));
+        assert!(parsed.has_more.is_none());
+        assert!(parsed.last_id.is_none());
+        assert!(parsed.next_page_token.is_none());
+    }
+
+    #[test]
+    fn parses_anthropic_models_response_with_capabilities_and_paging() {
+        let parsed: ModelsResponse = serde_json::from_str(
+            r#"{
+                "data": [{
+                    "id": "claude-x",
+                    "capabilities": {
+                        "image_input": { "supported": true },
+                        "pdf_input": { "supported": false }
+                    }
+                }],
+                "has_more": true,
+                "last_id": "claude-x"
+            }"#,
+        )
+        .unwrap();
+        let entry = &parsed.data[0];
+        assert_eq!(
+            entry.capabilities["image_input"]["supported"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(
+            entry.capabilities["pdf_input"]["supported"].as_bool(),
+            Some(false)
+        );
+        assert_eq!(parsed.has_more, Some(true));
+        assert_eq!(parsed.last_id.as_deref(), Some("claude-x"));
+    }
+
+    #[test]
+    fn parses_google_models_response_with_alias_and_page_token() {
+        let parsed: ModelsResponse = serde_json::from_str(
+            r#"{
+                "models": [{
+                    "name": "models/gemini-x",
+                    "supportedGenerationMethods": ["generateContent", "countTokens"]
+                }],
+                "nextPageToken": "abc"
+            }"#,
+        )
+        .unwrap();
+        let entry = &parsed.data[0];
+        assert!(entry.id.is_none());
+        assert_eq!(entry.name.as_deref(), Some("models/gemini-x"));
+        assert_eq!(
+            entry.supported_generation_methods.as_deref(),
+            Some(["generateContent".to_string(), "countTokens".to_string()].as_slice())
+        );
+        assert_eq!(parsed.next_page_token.as_deref(), Some("abc"));
+    }
+
+    #[test]
+    fn missing_capabilities_read_as_unknown() {
+        let parsed: ModelsResponse = serde_json::from_str(r#"{"data":[{"id":"m"}]}"#).unwrap();
+        let entry = &parsed.data[0];
+        assert_eq!(
+            entry.capabilities["image_input"]["supported"].as_bool(),
+            None
+        );
+        assert_eq!(entry.capabilities["pdf_input"]["supported"].as_bool(), None);
+    }
+
+    #[test]
+    fn models_response_requires_data_list() {
+        assert!(serde_json::from_str::<ModelsResponse>(r#"{"has_more":false}"#).is_err());
+    }
+
+    #[test]
+    fn model_info_serializes_camel_case_with_nulls() {
+        let info = ModelInfo {
+            id: "m".to_string(),
+            image_input: None,
+            pdf_input: Some(true),
+        };
+        assert_eq!(
+            serde_json::to_string(&info).unwrap(),
+            r#"{"id":"m","imageInput":null,"pdfInput":true}"#
+        );
+    }
+
+    #[test]
+    fn list_models_requires_saved_key() {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let result = tauri::async_runtime::block_on(list_models(
+            "openai".to_string(),
+            "https://api.openai.com/v1".to_string(),
+            Channel::new(|_| Ok(())),
+        ));
+        assert_eq!(result.unwrap_err(), "No API key saved for this provider");
     }
 }

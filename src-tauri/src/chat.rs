@@ -365,3 +365,263 @@ pub(crate) fn pick_chat_attachment(
         text,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_google_openai_compatibility_url() {
+        assert!(is_google_openai_compatibility_url(
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+        ));
+        assert!(is_google_openai_compatibility_url(
+            "https://GenerativeLanguage.googleapis.com/v1beta/OpenAI"
+        ));
+        assert!(!is_google_openai_compatibility_url(
+            "https://generativelanguage.googleapis.com/v1beta"
+        ));
+        assert!(!is_google_openai_compatibility_url(
+            "https://api.openai.com/v1"
+        ));
+    }
+
+    #[test]
+    fn detects_openrouter_url() {
+        assert!(is_openrouter_url("https://openrouter.ai/api/v1"));
+        assert!(is_openrouter_url("https://OpenRouter.ai/api/v1"));
+        assert!(!is_openrouter_url("https://api.openai.com/v1"));
+    }
+
+    #[test]
+    fn classifies_attachment_mime_types() {
+        let mut file = ChatAttachment {
+            path: "p".to_string(),
+            name: "n".to_string(),
+            mime_type: "application/pdf".to_string(),
+            data_base64: String::new(),
+            text: None,
+        };
+        assert!(is_pdf(&file));
+        assert!(!is_image(&file));
+
+        file.mime_type = "image/png".to_string();
+        assert!(!is_pdf(&file));
+        assert!(is_image(&file));
+
+        file.mime_type = "image/webp".to_string();
+        assert!(is_image(&file));
+
+        file.mime_type = "text/plain".to_string();
+        assert!(!is_pdf(&file));
+        assert!(!is_image(&file));
+    }
+
+    #[test]
+    fn anthropic_sends_text_for_unsupported_files() {
+        let mut file = ChatAttachment {
+            path: "p".to_string(),
+            name: "notes.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+            data_base64: "aGVsbG8=".to_string(),
+            text: Some("hello".to_string()),
+        };
+        assert_eq!(attachment_part("anthropic", &file).as_text(), Some("hello"));
+
+        file.text = None;
+        assert_eq!(
+            attachment_part("anthropic", &file).as_text(),
+            Some("The attached file has no text representation.")
+        );
+    }
+
+    #[test]
+    fn anthropic_sends_pdf_and_images_as_binary() {
+        let mut file = ChatAttachment {
+            path: "p".to_string(),
+            name: "a".to_string(),
+            mime_type: "application/pdf".to_string(),
+            data_base64: "aGVsbG8=".to_string(),
+            text: None,
+        };
+        assert!(attachment_part("anthropic", &file).as_text().is_none());
+
+        file.mime_type = "image/png".to_string();
+        assert!(attachment_part("anthropic", &file).as_text().is_none());
+    }
+
+    #[test]
+    fn other_providers_always_send_binary() {
+        let file = ChatAttachment {
+            path: "p".to_string(),
+            name: "notes.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+            data_base64: "aGVsbG8=".to_string(),
+            text: Some("hello".to_string()),
+        };
+        assert!(attachment_part("openai", &file).as_text().is_none());
+        assert!(attachment_part("google", &file).as_text().is_none());
+    }
+
+    #[test]
+    fn parses_known_efforts() {
+        assert!(matches!(parse_effort("low"), Ok(ReasoningEffort::Low)));
+        assert!(matches!(
+            parse_effort("medium"),
+            Ok(ReasoningEffort::Medium)
+        ));
+        assert!(matches!(parse_effort("high"), Ok(ReasoningEffort::High)));
+    }
+
+    #[test]
+    fn rejects_unknown_effort() {
+        assert_eq!(
+            parse_effort("bogus").unwrap_err(),
+            "Unsupported reasoning effort: bogus"
+        );
+    }
+
+    #[test]
+    fn describes_http_error_with_status_and_body() {
+        let error = genai::Error::HttpError {
+            status: reqwest::StatusCode::TOO_MANY_REQUESTS,
+            canonical_reason: "Too Many Requests".to_string(),
+            body: "slow down".to_string(),
+            headers: Default::default(),
+        };
+        let message = describe_error(error, "ignored");
+        assert!(message.starts_with("Provider returned 429"));
+        assert!(message.ends_with("slow down"));
+    }
+
+    #[test]
+    fn describes_chat_response_error_with_provider_message() {
+        let error = genai::Error::ChatResponse {
+            model_iden: ModelIden::new(AdapterKind::OpenAI, "gpt"),
+            body: serde_json::json!({ "error": { "message": "bad key" } }),
+        };
+        assert_eq!(describe_error(error, "ignored"), "Provider error: bad key");
+    }
+
+    #[test]
+    fn describes_chat_response_error_without_message_using_raw_body() {
+        let error = genai::Error::ChatResponse {
+            model_iden: ModelIden::new(AdapterKind::OpenAI, "gpt"),
+            body: serde_json::json!({ "oops": 1 }),
+        };
+        assert_eq!(
+            describe_error(error, "ignored"),
+            r#"Provider error: {"oops":1}"#
+        );
+    }
+
+    #[test]
+    fn describes_other_errors_with_context_prefix() {
+        let error = genai::Error::NoChatResponse {
+            model_iden: ModelIden::new(AdapterKind::OpenAI, "gpt"),
+        };
+        let message = describe_error(error, "Stream failed");
+        assert!(message.starts_with("Stream failed: "));
+    }
+
+    #[test]
+    fn maps_extensions_to_mime_types() {
+        assert_eq!(mime_type(Path::new("a.pdf")), "application/pdf");
+        assert_eq!(mime_type(Path::new("a.PDF")), "application/pdf");
+        assert_eq!(mime_type(Path::new("a.png")), "image/png");
+        assert_eq!(mime_type(Path::new("a.jpg")), "image/jpeg");
+        assert_eq!(mime_type(Path::new("a.JPEG")), "image/jpeg");
+        assert_eq!(mime_type(Path::new("a.gif")), "image/gif");
+        assert_eq!(mime_type(Path::new("a.webp")), "image/webp");
+        assert_eq!(mime_type(Path::new("a.txt")), "text/plain");
+        assert_eq!(mime_type(Path::new("a.MD")), "text/plain");
+        assert_eq!(mime_type(Path::new("a.exe")), "application/octet-stream");
+        assert_eq!(mime_type(Path::new("README")), "application/octet-stream");
+    }
+
+    #[test]
+    fn chat_options_deserialize_from_camel_case() {
+        let options: ChatOptions = serde_json::from_str(
+            r#"{"thinking":true,"effort":"low","thinkingBudget":2048,"maxTokens":4096,"jsonMode":true}"#,
+        )
+        .unwrap();
+        assert!(options.thinking);
+        assert_eq!(options.effort, "low");
+        assert_eq!(options.thinking_budget, 2048);
+        assert_eq!(options.max_tokens, 4096);
+        assert!(options.json_mode);
+    }
+
+    #[test]
+    fn chat_options_accept_dynamic_thinking_budget() {
+        let options: ChatOptions = serde_json::from_str(
+            r#"{"thinking":true,"effort":"low","thinkingBudget":-1,"maxTokens":1,"jsonMode":false}"#,
+        )
+        .unwrap();
+        assert_eq!(options.thinking_budget, -1);
+    }
+
+    #[test]
+    fn chat_options_require_every_field() {
+        assert!(serde_json::from_str::<ChatOptions>(r#"{"thinking":true}"#).is_err());
+    }
+
+    #[test]
+    fn chat_message_round_trips() {
+        let message: ChatMessage =
+            serde_json::from_str(r#"{"role":"user","content":"hi"}"#).unwrap();
+        assert_eq!(message.role, "user");
+        assert_eq!(message.content, "hi");
+        assert_eq!(
+            serde_json::to_string(&message).unwrap(),
+            r#"{"role":"user","content":"hi"}"#
+        );
+    }
+
+    #[test]
+    fn chat_attachment_uses_camel_case_and_optional_text() {
+        let attachment: ChatAttachment = serde_json::from_str(
+            r#"{"path":"/a.pdf","name":"a.pdf","mimeType":"application/pdf","dataBase64":"AA=="}"#,
+        )
+        .unwrap();
+        assert_eq!(attachment.mime_type, "application/pdf");
+        assert_eq!(attachment.data_base64, "AA==");
+        assert!(attachment.text.is_none());
+
+        let value = serde_json::to_value(&attachment).unwrap();
+        assert_eq!(value["mimeType"], "application/pdf");
+        assert_eq!(value["dataBase64"], "AA==");
+        assert!(value["text"].is_null());
+    }
+
+    #[test]
+    fn chat_delta_serializes_kind_and_text() {
+        let delta = ChatDelta {
+            kind: "thinking",
+            text: "hmm".to_string(),
+        };
+        assert_eq!(
+            serde_json::to_string(&delta).unwrap(),
+            r#"{"kind":"thinking","text":"hmm"}"#
+        );
+    }
+
+    #[test]
+    fn send_message_requires_saved_key() {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let options: ChatOptions = serde_json::from_str(
+            r#"{"thinking":false,"effort":"low","thinkingBudget":0,"maxTokens":1,"jsonMode":false}"#,
+        )
+        .unwrap();
+        let result = tauri::async_runtime::block_on(send_message(
+            "openai".to_string(),
+            "https://api.openai.com/v1".to_string(),
+            "gpt".to_string(),
+            Vec::new(),
+            None,
+            options,
+            Channel::new(|_| Ok(())),
+        ));
+        assert_eq!(result.unwrap_err(), "No API key saved for this provider");
+    }
+}
